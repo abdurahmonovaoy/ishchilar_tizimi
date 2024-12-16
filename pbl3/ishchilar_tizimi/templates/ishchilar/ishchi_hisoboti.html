@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Ishchi Haqqida Ma'lumot{% endblock %}
+
+{% block content %}
+<h1>{{ ishchi.ism }} {{ ishchi.familiya }} Haqida Ma'lumot</h1>
+
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Ism</th>
+            <th>Familiya</th>
+            <th>Yosh</th>
+            <th>Lavozim</th>
+            <th>Telefon</th>
+            <th>Ishlagan Soati</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>1</td>
+            <td>{{ ishchi.ism }}</td>
+            <td>{{ ishchi.familiya }}</td>
+            <td>{{ ishchi.yosh }}</td>
+            <td>{{ ishchi.lavozim }}</td>
+            <td>{{ ishchi.telefon }}</td>
+            <td>{{ ishchi.jami_ish_soati }}</td>
+        </tr>
+    </tbody>
+</table>
+
+{% endblock %}

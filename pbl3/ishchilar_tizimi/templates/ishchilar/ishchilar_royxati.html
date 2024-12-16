@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Ishchilar Ro‘yxati{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+<div class="container mt-5">
+    <h1 class="text-center mb-4">Ishchilar Ro‘yxati</h1>
+
+    <!-- Navigation Buttons -->
+    <div class="mb-4 text-center">
+        <a href="{% url 'ishchi_create' %}" class="btn btn-success btn-lg m-2">Yangi Ishchi Qo'shish</a>
+        <a href="{% url 'lavozimlar_royxati' %}" class="btn btn-info btn-lg m-2">Lavozimlar Ro'yxati</a>
+        <a href="{% url 'ish_vaqti_create' %}" class="btn btn-warning btn-lg m-2">Ish Vaqti Qo'shish</a>
+    </div>
+
+    <!-- Qidiruv formasi -->
+    <form method="get" action="{% url 'ishchilar_royxati' %}" class="mb-4">
+        <div class="row">
+            <div class="col-md-9">
+                <input 
+                    type="text" 
+                    name="qidiruv" 
+                    class="form-control" 
+                    placeholder="Ism, familiya yoki lavozim bo‘yicha qidirish" 
+                    value="{{ qidiruv }}">
+            </div>
+            <div class="col-md-3 d-flex justify-content-between">
+                <button type="submit" class="btn btn-primary btn-block">Qidirish</button>
+                <a href="{% url 'ishchilar_royxati' %}" class="btn btn-secondary btn-block ms-2">Barchani Ko‘rsatish</a>
+            </div>
+        </div>
+    </form>
+
+    <!-- Jadval -->
+    <table class="table table-bordered table-hover table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>#</th>
+                <th>Ism</th>
+                <th>Familiya</th>
+                <th>Yosh</th>
+                <th>Lavozim</th>
+                <th>Telefon</th>
+                <th>Jami Ishlagan Kunlar</th>
+                <th>Jami Ishlagan Soatlar</th>
+                <th>Jami Ish Soatlari</th>
+                <th>Harakatlar</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ih in ishchilar_haqida %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ ih.ishchi.ism }}</td>
+                <td>{{ ih.ishchi.familiya }}</td>
+                <td>{{ ih.ishchi.yosh }}</td>
+                <td>{{ ih.ishchi.lavozim }}</td>
+                <td>{{ ih.ishchi.telefon }}</td>
+                <td>{{ ih.jami_kunlar }}</td>
+                <td>{{ ih.jami_ish_soati }}</td>
+                <td>{{ ih.jami_soatlar }}</td>
+                <td>
+                    <div class="btn-group">
+                        <a href="{% url 'ish_haqqi_hisoblash' ih.ishchi.id %}" class="btn btn-primary btn-sm">Ish Haqi</a>
+                        <a href="{% url 'ishchi_update' ih.ishchi.id %}" class="btn btn-warning btn-sm">Tahrirlash</a>
+                        <a href="{% url 'ishchi_delete' ih.ishchi.id %}" class="btn btn-danger btn-sm">O'chirish</a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

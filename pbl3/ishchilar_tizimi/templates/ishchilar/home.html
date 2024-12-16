@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Bosh Sahifa{% endblock %}
+
+{% block content %}
+<h1>Ishchilar Ro'yxati</h1>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Ism</th>
+            <th>Familiya</th>
+            <th>Lavozim</th>
+            <th>Jami Ish Haqi</th>
+            <th>Harakatlar</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for ishchi in ishchilar %}
+        <tr>
+            <td>{{ ishchi.ism }}</td>
+            <td>{{ ishchi.familiya }}</td>
+            <td>{{ ishchi.lavozim }}</td>
+            <td>{{ ishchi.jami_haqi }}</td>
+            <td><a href="{% url 'ishchi_detail' ishchi.id %}" class="btn btn-primary btn-sm">Ko'rish</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

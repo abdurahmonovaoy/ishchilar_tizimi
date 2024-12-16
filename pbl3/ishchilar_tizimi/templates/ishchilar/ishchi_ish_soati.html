@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h2 class="card-title text-center mb-4">Ishchi Ish Soati Hisoboti</h2>
+            <p class="card-text">
+                <strong>Ishchi:</strong> {{ ishchi }}
+            </p>
+            <p class="card-text">
+                <strong>Ish soati:</strong> {{ ish_soati }} soat
+            </p>
+            <div class="text-center mt-4">
+                <a href="{% url 'ishchilar_royxati' %}" class="btn btn-primary">
+                    <i class="fas fa-arrow-left"></i> Orqaga
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

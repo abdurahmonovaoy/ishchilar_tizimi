@@ -1,0 +1,34 @@
+<!-- templates/ish_haqqi.html -->
+{% extends 'base.html' %}
+
+{% block title %}Ishchilarning Ish Haqqi{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h2 class="card-title text-center mb-4">Ishchilar Ish Haqqi</h2>
+            
+            <!-- Ishchilar jadvali -->
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Ishchi Ismi</th>
+                        <th>Kunlar Soni</th>
+                        <th>Umumiy Ishlangan Soatlar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for data in ishchilar_data %}
+                        <tr>
+                            <td>{{ data.ishchi }}</td>
+                            <td>{{ data.kunlar_soni }}</td>
+                            <td>{{ data.umumiy_soatlar }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Ishchi Tafsilotlari{% endblock %}
+
+{% block content %}
+<h2>{{ ishchi.ism }} {{ ishchi.familiya }}</h2>
+<p><strong>Jinsi:</strong> {{ ishchi.jinsi }}</p>
+<p><strong>Lavozim:</strong> {{ ishchi.lavozim }}</p>
+<p><strong>Telefon:</strong> {{ ishchi.telefon }}</p>
+<p><strong>Jami Ish Haqi:</strong> {{ ishchi.jami_haqi }} so'm</p>
+<a href="/" class="btn btn-secondary">Orqaga</a>
+{% endblock %}
+
+
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<h2> Iconfirm the deletion of: {{ ishchi.ism }} {{ ishchi.familiya }} </h2>
+
+<form method="post" class="form-group">
+    {% csrf_token %}
+    <p>Bu ishchini o'chirishni tasdiqlaysizmi?</p>
+    <button type="submit" class="btn btn-danger">Ha, o‘chirish</button>
+    <a href="{% url 'ishchilar_royxati' %}" class="btn btn-secondary">Bekor qilish</a>
+</form>
+{% endblock %}
