@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Ish Vaqti Qo‘shish{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mt-4 mb-3">Ish Vaqti Qo‘shish</h2>
+    
+    <h4>{{ hodim.first_name }} {{ hodim.last_name }}</h4> <!-- ✅ Hodim ismi avtomatik chiqadi -->
+
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="mb-3">
+            <label for="check_in" class="form-label">Kirish vaqti</label>
+            <input type="time" id="check_in" name="check_in" class="form-control" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="check_out" class="form-label">Ketish vaqti (Majburiy emas)</label>
+            <input type="time" id="check_out" name="check_out" class="form-control">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Saqlash</button>
+    </form>
+
+    <h3 class="mt-4">Bugungi Ish Vaqtlari</h3>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Kirish</th>
+                <th>Chiqish</th>
+                <th>Ishlangan Soat</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for worklog in worklogs %}
+            <tr>
+                <td>{{ worklog.check_in|time:"H:i" }}</td>
+                <td>
+                    {% if worklog.check_out %}
+                        {{ worklog.check_out|time:"H:i" }}
+                    {% else %}
+                        <span class="text-warning">Hali ketmagan</span>
+                    {% endif %}
+                </td>
+                <td>{{ worklog.hours_worked }} soat</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3" class="text-center">Bugungi ish vaqtlari yo‘q</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

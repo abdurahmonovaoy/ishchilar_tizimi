@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2> Yangi Hodim Qo‘shish</h2>
+
+<form method="POST">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Saqlash</button>
+</form>
+
+<a href="{% url 'hodimlar:add_hodim' %}">Orqaga</a>
+{% endblock %}

@@ -1,0 +1,8 @@
+<form action="{% url 'download_zip' %}" method="post">
+    {% csrf_token %}
+    {% for file in files %}
+        <input type="checkbox" name="files" value="{{ file.file.name }}"> {{ file.file.name }} <br>
+    {% endfor %}
+    <button type="submit">Tanlangan fayllarni ZIP qilish</button>
+</form>
+<a href="{% url 'upload_file' %}">Fayl yuklash</a>

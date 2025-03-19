@@ -1,0 +1,6 @@
+<form action="{% url 'upload_file' %}" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="file" name="file">
+    <button type="submit">Yuklash</button>
+</form>
+<a href="{% url 'file_list' %}">Yuklangan fayllar ro‘yxati</a>

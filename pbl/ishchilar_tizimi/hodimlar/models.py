@@ -1,10 +1,12 @@
 from django.db import models
 from django.core.validators import RegexValidator, MinValueValidator
-from django.contrib.auth.models import AbstractUser, User
+from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta, date
+from django.utils.timezone import localtime, make_aware, get_current_timezone
+
 
 # Telefon raqamini tekshirish uchun funksiya
 def validate_phone_number(value):
@@ -22,8 +24,20 @@ def validate_age(value):
     if value < 18:
         raise ValidationError(_('Yosh 18 dan kichik bo‘lishi mumkin emas.'))
 
+# Lavozimlar
+def get_default_positions():
+    return ['Direktor', 'Hisobchi', 'Dasturchi', 'Xodim']
+
+LAVOZIMLAR = [
+        ('Tikuvch', 'Tikuvchi'),
+        ('Orta kesuv', 'Orta kesuv'),
+        ('Kesuv', 'Kesuv'),
+        ('Mehanik', 'Mehanik'),
+        ('Ish bay', 'Ish bay'),
+    ]
+
 # Hodim modeli
-class hodim(models.Model):  # Model nomini "hodim" qilib o'zgartirdik
+class Hodim(models.Model):
     first_name = models.CharField(
         max_length=50,
         validators=[RegexValidator(r'^[a-zA-Z\s]+$', "Ism faqat harflardan iborat bo'lishi kerak")]
@@ -38,18 +52,51 @@ class hodim(models.Model):  # Model nomini "hodim" qilib o'zgartirdik
         unique=True,
         validators=[RegexValidator(r'^\+998\d{9}$', "Telefon raqami +998 formatida va 9 ta raqamdan iborat bo'lishi kerak")]
     )
+    lavozim = models.CharField(
+        max_length=50,
+        choices=LAVOZIMLAR,
+        default='Tikuvchi'  # Agar lavozim tanlanmasa, "Tikuvchi" deb belgilaydi
+    )
+    
     is_active = models.BooleanField(default=True)
     joined_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name}"
+        return f"{self.first_name} {self.last_name} - {self.get_lavozim_display()}"
 
     class Meta:
-        unique_together = ('first_name', 'last_name', 'phone_number')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['first_name', 'last_name', 'phone_number'],
+                name='unique_hodim'
+            )
+        ]
+        ordering = ['first_name', 'last_name']
+        verbose_name = "Hodim"
+        verbose_name_plural = "Hodimlar"
+
+    def days_present_in_month(self, year, month):
+        first_day = datetime(year, month, 1)
+        last_day = datetime(year, month + 1, 1) - timedelta(days=1)
+        return WorkLog.objects.filter(hodim=self, check_in__date__range=[first_day, last_day]).count()
+
+    def days_absent_in_month(self, year, month):
+        total_days = (datetime(year, month + 1, 1) - timedelta(days=1)).day
+        return total_days - self.days_present_in_month(year, month)
+
+    def days_late_in_month(self, year, month):
+        first_day = datetime(year, month, 1)
+        last_day = datetime(year, month + 1, 1) - timedelta(days=1)
+        return WorkLog.objects.filter(hodim=self, check_in__date__range=[first_day, last_day], check_in__hour__gt=9).count()
+
+    def total_hours_worked(self):
+        """Hodimning umumiy ishlagan soatlarini hisoblash"""
+        worklogs = WorkLog.objects.filter(hodim=self, check_out__isnull=False)
+        return sum(log.hours_worked() for log in worklogs)
 
 # Ish vaqti modeli
 class WorkLog(models.Model):
-    hodim = models.ForeignKey(hodim, on_delete=models.CASCADE)
+    hodim = models.ForeignKey('Hodim', on_delete=models.CASCADE)
     check_in = models.DateTimeField()
     check_out = models.DateTimeField(null=True, blank=True)
 
@@ -60,22 +107,47 @@ class WorkLog(models.Model):
             raise ValidationError(_('Ish vaqti kuniga 24 soatdan oshmasligi kerak.'))
 
     def hours_worked(self):
+        """Ishlangan soatlarni hisoblash"""
         if self.check_out:
-            worked_hours = (self.check_out - self.check_in).total_seconds() / 3600
-            return min(worked_hours, 24)  # Maksimal 24 soat cheklovi
+            time_worked = self.check_out - self.check_in
+            return round(time_worked.total_seconds() / 3600, 2)  # ✅ Sekundlarni soatlarga o‘girish
+        return 0
+
+    def late_check_in_hours(self):
+        """Hodim 08:00 dan kech kelsa, kechikish vaqtini hisoblash."""
+        start_time = make_aware(datetime.combine(self.check_in.date(), datetime.min.time()).replace(hour=8, minute=0, second=0), get_current_timezone())
+        if self.check_in > start_time:
+            late_duration = self.check_in - start_time
+            return round(late_duration.total_seconds() / 3600, 2)  
+        return 0
+
+    def early_leave_hours(self):
+        """Hodim 17:00 dan oldin ketsa, oldin ketgan soatni hisoblash."""
+        end_time = make_aware(datetime.combine(self.check_in.date(), datetime.min.time()).replace(hour=17, minute=0, second=0), get_current_timezone())
+        if self.check_out and self.check_out < end_time:
+            early_leave_duration = end_time - self.check_out
+            return round(early_leave_duration.total_seconds() / 3600, 2)
+        return 0
+
+    def overtime_hours(self):
+        """Agar hodim 9 soatdan ko‘p ishlagan bo‘lsa, ortiqcha ish soatini hisoblaydi."""
+        if self.check_in and self.check_out:
+            work_duration = self.check_out - self.check_in
+            if work_duration.total_seconds() > 32400:  # 9 soat = 32400 sekund
+                return round((work_duration.total_seconds() - 32400) / 3600, 2)
         return 0
 
     def __str__(self):
-        return f"{self.hodim.first_name} {self.hodim.last_name} - {self.check_in} to {self.check_out}"
+        return f"{self.hodim} - {localtime(self.check_in)}"
+
+    @property
+    def worked_hours(self):
+        if self.check_out:
+            return round((self.check_out - self.check_in).total_seconds() / 3600, 2)
+        return 0
 
 
-# class AdminUserProfile(models.Model):
-#     user = models.OneToOneField(AdminUser, on_delete=models.CASCADE, related_name="profile")
-    
-#     def __str__(self):
-#         return self.user.username
 
-# Admin modeli (Alohida foydalanuvchilar uchun)
 class AdminUser(AbstractUser):
     is_admin = models.BooleanField(default=True)
 
@@ -92,3 +164,5 @@ class AdminUser(AbstractUser):
 
     def __str__(self):
         return self.username
+
+        # shuyergacham boldi bugunga qolgani ertagam inshollox
