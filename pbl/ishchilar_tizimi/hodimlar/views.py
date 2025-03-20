@@ -163,6 +163,9 @@ def monthly_work_hours(request):
 
 
 def admin_login(request):
+    if request.user.is_authenticated:  # Agar admin allaqachon tizimga kirgan bo'lsa
+        return redirect('hodimlar:admin_dashboard')
+
     if request.method == "POST":
         username = request.POST["username"]
         password = request.POST["password"]
@@ -311,49 +314,77 @@ def add_worklog(request, hodim_id):
 
 
 def monthly_report(request):
-    # Hodimlar sonini olish
+    
+    """ 
+    🔹 Bugungi kun va oylik ish vaqtlari statistikasi 
+    🔹 Admin va foydalanuvchilar uchun mos interfeys
+    """
+
+    # ✅ Admin yoki foydalanuvchini tekshirish
+    # template_name = "admin/monthly_report.html" if request.user.is_staff else "user/monthly_report.html"
+     # ✅ To‘g‘ri template tanlash
+    if request.user.is_staff:
+        template_name = "admin/monthly_report.html"  # ADMIN TEMPLATE
+        base_template = "admin_base.html"  # ADMIN BAZAVIY TEMPLATE
+    else:
+        template_name = "hodimlar/monthly_report.html"  # FOYDALANUVCHI TEMPLATE
+        base_template = "base.html"  # USER BAZAVIY TEMPLATE
+
+    # ✅ Bugungi sana va oyning birinchi va oxirgi kunini topish
+    today = date.today()
+    first_day = today.replace(day=1)
+    last_day = (first_day + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+
+    # ✅ Jami hodimlar soni
     total_employees = Hodim.objects.count()
 
-    # Bugungi sana
-    today = datetime.today().date()
-
-    # Bugun ishga kelgan hodimlar
-    present_today = WorkLog.objects.filter(check_in__date=today).count()
-
-    # Bugun kelmagan hodimlar
+    # ✅ Bugun ishga kelgan hodimlar
+    today_work_logs = WorkLog.objects.filter(check_in__date=today)
+    present_today = today_work_logs.count()
     absent_today = total_employees - present_today
 
-    # Ishlagan soatlarni hisoblash
-    work_logs = WorkLog.objects.all()
-    work_hours = []
-    employee_names = []
+    # ✅ Ishlagan soatlarni hisoblash (Bugun)
+    today_total_hours = sum(
+        (log.check_out - log.check_in).total_seconds() / 3600
+        for log in today_work_logs if log.check_out
+    )
+    today_avg_work_hours = round(today_total_hours / present_today, 2) if present_today else 0
 
-    for log in work_logs:
-        if log.check_out:  # Agar chiqish vaqti mavjud bo‘lsa
-            worked_seconds = (log.check_out - log.check_in).total_seconds()
-            worked_hours = round(worked_seconds / 3600, 2)  # Sekundni soatga o‘girish
-            work_hours.append(worked_hours)
-            employee_names.append(f"{log.hodim.first_name} {log.hodim.last_name}")
+    # ✅ Ishlagan soatlarni hisoblash (Oylik)
+    monthly_work_logs = WorkLog.objects.filter(check_in__date__range=[first_day, last_day])
+    monthly_total_hours = sum(
+        (log.check_out - log.check_in).total_seconds() / 3600
+        for log in monthly_work_logs if log.check_out
+    )
+    monthly_avg_work_hours = round(monthly_total_hours / max(len(monthly_work_logs), 1), 2)
 
-    # O'rtacha ish soatini hisoblash
-    avg_work_hours = round(sum(work_hours) / len(work_hours), 2) if work_hours else 0
+    # ✅ Hodimlar bo‘yicha ish soatlarini hisoblash (Oylik)
+    work_hours_data = {}
+    for log in monthly_work_logs:
+        if log.check_out:
+            worked_hours = (log.check_out - log.check_in).total_seconds() / 3600
+            full_name = f"{log.hodim.first_name} {log.hodim.last_name}"
+            work_hours_data[full_name] = work_hours_data.get(full_name, 0) + worked_hours
 
-    # 📊 Grafik uchun JSON format
-    employee_names_json = json.dumps(employee_names)
-    work_hours_json = json.dumps(work_hours)
+    employee_names = list(work_hours_data.keys())
+    work_hours = list(work_hours_data.values())
 
+    # ✅ Kontekstga ma'lumotlarni joylash
     context = {
-        'total_employees': total_employees,
-        'present_today': present_today,
-        'absent_today': absent_today,
-        'avg_work_hours': avg_work_hours,
-        'employee_names': employee_names_json,
-        'work_hours': work_hours_json,
+        "total_employees": total_employees,
+        "present_today": present_today,
+        "absent_today": absent_today,
+        "today_avg_work_hours": today_avg_work_hours,
+        "monthly_avg_work_hours": monthly_avg_work_hours,
+        "employee_names": json.dumps(employee_names),
+        "work_hours": json.dumps(work_hours),
+        "month": today.strftime('%B %Y'),
+        "base_template": base_template,  # 🔹 BAZAVIY TEMPLATE KO‘SHILDI
     }
 
-    return render(request, "admin/monthly_report.html", context)
+    return render(request, template_name, context)
 
-
+    
 def edit_hodim(request, id):
     hodim = get_object_or_404(Hodim, id=id)
     if request.method == "POST":

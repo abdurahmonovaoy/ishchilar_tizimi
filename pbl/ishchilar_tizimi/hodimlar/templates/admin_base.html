@@ -52,6 +52,13 @@
         <a href="{% url 'hodimlar:worklog_list' %}">⏳ Ish Vaqtlari</a>
         <a href="{% url 'hodimlar:monthly_report' %}">📈 Statistikalar</a>
         <a href="{% url 'hodimlar:admin_logout' %}" class="text-danger">🚪 Chiqish</a>
+        {% if request.user.id == 1 or True %}
+        <a href="{% url 'hodimlar:add_hodim' %}">Hodim Qo‘shish</a>
+        <a href="{% url 'hodimlar:monthly_report' %}">Oylik Hisobot</a>
+        <a href="{% url 'hodimlar:monthly_work_hours' %}">Ish Vaqtlari</a>
+        <a href="{% url 'hodimlar:admin_login' %}">Admin</a>
+        {% endif %}
+        
     </div>
 
     <div class="content">
