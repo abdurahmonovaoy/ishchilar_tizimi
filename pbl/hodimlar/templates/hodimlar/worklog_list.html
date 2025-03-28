@@ -1,0 +1,83 @@
+{% extends "admin_base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-3">📋 Ish Vaqtlari Ro‘yxati</h2>
+
+    <!-- Qidirish va filtrlash shakli -->
+    <form method="GET" class="d-flex gap-2 mb-3">
+        <input type="text" name="search" class="form-control" placeholder="Hodim ismini kiriting...">
+        <input type="date" name="date" class="form-control" placeholder="Sanani tanlang">
+        <button type="submit" class="btn btn-primary">🔍 Qidirish</button>
+    </form>
+
+    <!-- Hodimni tanlash uchun tugma -->
+    <div class="d-flex justify-content-between mb-3">
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selectHodimModal">
+            + Ish Vaqti Qo‘shish
+        </button>
+
+        <div class="text-center mt-3">
+            <a href="{% url 'hodimlar:bugungi_holati' %}" class="btn btn-outline-primary">
+                <i class="bi bi-list"></i> Hodimlar holati
+            </a>
+        </div>
+    </div>
+
+    <!-- Modal - Hodimni tanlash -->
+    <div class="modal fade" id="selectHodimModal" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalLabel">Hodimni tanlang</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="list-group">
+                        {% for hodim in hodimlar %}
+                        <li class="list-group-item">
+                            <a href="{% url 'hodimlar:add_worklog' hodim_id=hodim.id %}" class="btn btn-link">
+                                {{ hodim.first_name }} {{ hodim.last_name }}
+                            </a>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-center">📌 Hodimlar topilmadi</li>
+                        {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ish Vaqtlari Ro‘yxati -->
+    <table class="table table-bordered table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>#</th>
+                <th>Hodim</th>
+                <th>Kelgan vaqti</th>
+                <th>Ketgan vaqti</th>
+                <th>Ishlangan soat</th>
+                <th>Kechikish (soat)</th>
+                <th>Erta ketish (soat)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in worklogs %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ log.hodim.first_name }} {{ log.hodim.last_name }}</td>
+                <td>{{ log.check_in }}</td>
+                <td>{{ log.check_out|default:"⏳ Hali chiqmagan" }}</td>
+                <td>{{ log.hours_worked }}</td>
+                <td>{{ log.late_check_in_hours }}</td>
+                <td>{{ log.early_leave_hours }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="text-center text-muted">📭 Ma’lumotlar topilmadi</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

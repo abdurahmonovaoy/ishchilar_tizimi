@@ -1,0 +1,84 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+    <h3>Admin Panelga Xush Kelibsiz!</h3>
+    <p>Bu yerda tizim statistikalarini ko‘rishingiz mumkin.</p>
+
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Jami Hodimlar</h5>
+                    <p class="card-text">{{ total_employees }} ta</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Bugun Ishga Kelganlar</h5>
+                    <p class="card-text">{{ present_today }} ta</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Bugun Ishga Kelmadi</h5>
+                    <p class="card-text">{{ absent_today }} ta</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h5 class="card-title">O‘rtacha Ish Vaqti</h5>
+                    <p class="card-text">{{ avg_work_hours }} soat</p>
+                </div>
+            </div>
+        </div> -->
+    </div>
+
+    <!-- ✅ Grafik uchun joy -->
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Bugungi Ish Vaqtlari Statistikasi</h5>
+            <canvas id="workHoursChart"></canvas>
+        </div>
+    </div>
+
+    <!-- ✅ Chart.js Kutubxonasini ulash -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        var ctx = document.getElementById("workHoursChart").getContext("2d");
+
+        var employeeNames = JSON.parse('{{ employee_names|escapejs }}'); 
+        var workHours = JSON.parse('{{ work_hours|escapejs }}');
+
+        var workHoursChart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: employeeNames,  
+                datasets: [{
+                    label: "Bugungi Ishlagan Soatlar",
+                    data: workHours,  
+                    backgroundColor: "rgba(54, 162, 235, 0.6)",
+                    borderColor: "rgba(54, 162, 235, 1)",
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    </script>
+{% endblock %}

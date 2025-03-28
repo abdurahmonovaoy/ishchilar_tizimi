@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}📊 Ish Statistikasi{% endblock %}
+
+{% block content %}
+    <h1>Foydalanuvchi - Oylik Hisobot</h1>
+    <p>{{ message }}</p>
+
+    <h3>📊 Bugungi va Oylik Ish Statistikasi</h3>
+
+    <div class="row">
+        <!-- Jami Hodimlar -->
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Jami Hodimlar</h5>
+                    <p class="card-text">{{ total_employees }} ta</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bugun Ishga Kelganlar -->
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Bugun Ishga Kelganlar</h5>
+                    <p class="card-text">{{ present_today }} ta</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bugun Ishga Kelmadi -->
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Bugun Ishga Kelmadi</h5>
+                    <p class="card-text">{{ absent_today }} ta</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bugungi O‘rtacha Ish Vaqti -->
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h5 class="card-title">Bugungi O‘rtacha Ish Vaqti</h5>
+                    <p class="card-text">{{ today_avg_work_hours }} soat</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h3 class="mt-4">📊 Oylik Ish Statistikasi ({{ month }})</h3>
+
+    <div class="row">
+        <!-- Oylik O‘rtacha Ish Vaqti -->
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Oylik O‘rtacha Ish Vaqti</h5>
+                    <p class="card-text">{{ monthly_avg_work_hours }} soat</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 📊 Ish vaqti grafikasi -->
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Hodimlarning Ishlagan Soatlari (Oylik)</h5>
+            <canvas id="workHoursChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Chart.js Kutubxonasini ulash -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var ctx = document.getElementById("workHoursChart").getContext("2d");
+
+            var employeeNames = JSON.parse('{{ employee_names|escapejs }}'); 
+            var workHours = JSON.parse('{{ work_hours|escapejs }}');
+
+            var workHoursChart = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: employeeNames,  
+                    datasets: [{
+                        label: "Oylik Ish Soatlari",
+                        data: workHours,  
+                        backgroundColor: "rgba(75, 192, 192, 0.6)",
+                        borderColor: "rgba(75, 192, 192, 1)",
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+{% endblock %}

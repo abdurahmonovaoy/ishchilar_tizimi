@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Ishchilar Tizimi{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'hodimlar:hodim_list' %}">Ishchilar Tizimi</a>
+            <div class="navbar-nav">
+                <!-- <a class="nav-link" href="{% url 'hodimlar:add_hodim' %}">Hodim Qo‘shish</a>
+                <a class="nav-link" href="{% url 'hodimlar:monthly_report' %}">Oylik Hisobot</a>
+                <a class="nav-link" href="{% url 'hodimlar:monthly_work_hours' %}">Ish Vaqtlari</a>  -->
+                <a class="nav-link text-danger" href="{% url 'hodimlar:admin_login' %}">Admin</a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container mt-4">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

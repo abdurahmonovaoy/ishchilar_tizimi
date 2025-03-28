@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f4f4f4;
+        text-align: center;
+        padding: 30px;
+    }
+
+    .container {
+        max-width: 700px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        border-radius: 10px;
+    }
+
+    h1 {
+        color: #333;
+    }
+
+    input[type="text"] {
+        width: 80%;
+        padding: 10px;
+        margin: 10px 0;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+
+    button {
+        padding: 10px 15px;
+        background: #141c26;
+        color: white;
+        border: none;
+        cursor: pointer;
+        border-radius: 5px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        margin: auto;
+    }
+
+    th, td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: center;
+    }
+
+    th {
+        background: #141c26;
+        color: white;
+    }
+
+    .green-text {
+        color: green;
+        font-weight: bold;
+    }
+
+    .yellow-text {
+        color: orange;
+        font-weight: bold;
+    }
+
+    .red-text {
+        color: red;
+        font-weight: bold;
+    }
+
+    .no-data {
+        color: gray;
+        font-style: italic;
+        margin-top: 20px;
+    }
+</style>
+
+<div class="container">
+    <h1>👨‍💼 Barcha Hodimlar - {{ today }}</h1>
+
+    <!-- 🔍 Qidiruv Formasi -->
+    <form method="GET">
+        <input type="text" name="q" placeholder="Ism yoki familiya bo‘yicha qidiring..." value="{{ query }}">
+        <button type="submit">🔍 Qidirish</button>
+    </form>
+
+    {% if hodimlar_data %}
+    <table>
+        <tr>
+            <th>Hodim</th>
+            <th>Kelgan vaqti</th>
+            <th>Ketgan vaqti</th>
+        </tr>
+        {% for hodim in hodimlar_data %}
+        <tr>
+            <td>{{ hodim.first_name }} {{ hodim.last_name }}</td>
+            <td class="{% if hodim.check_in and hodim.check_out %}green-text{% elif hodim.check_in and not hodim.check_out %}yellow-text{% else %}red-text{% endif %}">
+                {% if hodim.check_in %}{{ hodim.check_in }}{% else %}Kelmagan{% endif %}
+            </td>
+            <td class="{% if hodim.check_out %}green-text{% elif hodim.check_in and not hodim.check_out %}yellow-text{% else %}red-text{% endif %}">
+                {% if hodim.check_out %}{{ hodim.check_out }}{% else %}Ketmagan{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="no-data">🚫 Hodim topilmadi.</p>
+    {% endif %}
+</div>
+{% endblock %}

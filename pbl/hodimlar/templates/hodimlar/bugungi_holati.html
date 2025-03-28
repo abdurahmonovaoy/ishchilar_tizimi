@@ -1,0 +1,52 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="text-center mb-4">Bugungi Hodimlar Holati</h2>
+
+    <div class="row">
+        <!-- Ishga kelganlar -->
+        <div class="col-md-6">
+            <div class="card shadow border-success">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">✅ Ishga Kelganlar</h4>
+                </div>
+                <div class="card-body">
+                    {% if ishga_kelganlar %}
+                        <ul class="list-group">
+                            {% for hodim in ishga_kelganlar %}
+                                <li class="list-group-item">
+                                    <i class="bi bi-person-circle"></i> {{ hodim.first_name }} {{ hodim.last_name }}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted">Bugun hech kim ishga kelmadi.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Ishga kelmaganlar -->
+        <div class="col-md-6">
+            <div class="card shadow border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">❌ Kelmaganlar</h4>
+                </div>
+                <div class="card-body">
+                    {% if kelmaganlar %}
+                        <ul class="list-group">
+                            {% for hodim in kelmaganlar %}
+                                <li class="list-group-item">
+                                    <i class="bi bi-person-x"></i> {{ hodim.first_name }} {{ hodim.last_name }}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted">Barcha hodimlar ishga kelgan.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

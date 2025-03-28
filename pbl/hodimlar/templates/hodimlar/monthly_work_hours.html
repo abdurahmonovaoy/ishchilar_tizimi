@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Oylik Ish Vaqtlari{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mt-4 mb-3">Oylik Ish Vaqtlari</h2>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Hodim</th>
+                <th>Ishlagan Soatlar</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for data in work_hours_data %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ data.hodim.first_name }} {{ data.hodim.last_name }}</td>
+                <td>{{ data.worked_hours }} soat</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3" class="text-center">Hali ish vaqtlari mavjud emas</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

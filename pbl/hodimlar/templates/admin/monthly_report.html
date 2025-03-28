@@ -1,0 +1,74 @@
+{% extends "admin_base.html" %}
+
+{% block title %}📊 Oylik Ish Statistikasi{% endblock %}
+
+{% block content %}
+    <h1>Admin - Oylik Hisobot</h1>
+
+    <h3 class="mt-4">📊 Oylik Ish Statistikasi ({{ month }})</h3>
+
+    <!-- Ish vaqti statistikasi grafigi -->
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title">Hodimlarning Oylik Ish Statistikasi</h5>
+            <canvas id="workStatusChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Chart.js Kutubxonasini ulash -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var ctx = document.getElementById("workStatusChart").getContext("2d");
+
+            var employeeNames = JSON.parse('{{ employee_names|escapejs }}'); 
+            var onTimeDays = JSON.parse('{{ on_time_days|escapejs }}');  
+            var lateDays = JSON.parse('{{ late_days|escapejs }}');  
+            var absentDays = JSON.parse('{{ absent_days|escapejs }}');  
+
+            var workStatusChart = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: ["Vaqtida Kelgan Kunlar", "Kech Qolgan Kunlar", "Kelmagan Kunlar"],
+                    datasets: employeeNames.map((name, index) => ({
+                        label: name,
+                        data: [onTimeDays[index], lateDays[index], absentDays[index]],
+                        backgroundColor: [
+                            "rgba(75, 192, 75, 0.7)",   // Yashil
+                            "rgba(255, 205, 86, 0.7)",  // Sariq
+                            "rgba(255, 99, 132, 0.7)"   // Qizil
+                        ],
+                        borderColor: [
+                            "rgba(75, 192, 75, 1)",
+                            "rgba(255, 205, 86, 1)",
+                            "rgba(255, 99, 132, 1)"
+                        ],
+                        borderWidth: 1
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    indexAxis: "y",  // 📌 Gorizontal bar chart qilish
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: "bottom",  // 📌 Hodimlar nomi pastda chiqadi
+                            labels: {
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+{% endblock %}
