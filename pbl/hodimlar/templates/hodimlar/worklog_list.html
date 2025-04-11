@@ -5,11 +5,12 @@
     <h2 class="mb-3">📋 Ish Vaqtlari Ro‘yxati</h2>
 
     <!-- Qidirish va filtrlash shakli -->
-    <form method="GET" class="d-flex gap-2 mb-3">
-        <input type="text" name="search" class="form-control" placeholder="Hodim ismini kiriting...">
-        <input type="date" name="date" class="form-control" placeholder="Sanani tanlang">
-        <button type="submit" class="btn btn-primary">🔍 Qidirish</button>
-    </form>
+<form method="GET" class="d-flex gap-2 mb-3">
+    <input type="text" name="q" class="form-control me-2" placeholder="Hodim ismini kiriting..." class="form-control me-2" value="{{ query }}">
+    <input type="date" name="date" class="form-control" placeholder="Sanani tanlang" value="{{ date }}">
+    <button type="submit" class="btn btn-primary">🔍 Qidirish</button>
+</form>
+
 
     <!-- Hodimni tanlash uchun tugma -->
     <div class="d-flex justify-content-between mb-3">

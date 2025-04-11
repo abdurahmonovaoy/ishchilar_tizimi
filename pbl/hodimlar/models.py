@@ -9,6 +9,7 @@ from django.utils.timezone import localtime, make_aware, get_current_timezone, n
 from django.contrib.auth.models import AbstractUser
 
 
+
 class AdminUser(AbstractUser):
     is_admin = models.BooleanField(default=True)
 
@@ -48,13 +49,12 @@ def get_default_positions():
     return ['Direktor', 'Hisobchi', 'Dasturchi', 'Xodim']
 
 LAVOZIMLAR = [
-        ('Tikuvch', 'Tikuvchi'),
-        ('Orta kesuv', 'Orta kesuv'),
-        ('Kesuv', 'Kesuv'),
-        ('Mehanik', 'Mehanik'),
-        ('Ish bay', 'Ish bay'),
-    ]
-
+    ('Tikuvchi', 'Tikuvchi'),
+    ('Orta kesuvchi', 'Orta kesuvchi'),
+    ('Kesuvchi', 'Kesuvchi'),
+    ('Mexanik', 'Mexanik'),
+    ('Ish boshqaruvchi', 'Ish boshqaruvchi'),
+]
 # Hodim modeli
 class Hodim(models.Model):
     first_name = models.CharField(
@@ -123,11 +123,14 @@ class WorkLog(models.Model):
     check_out = models.DateTimeField(null=True, blank=True)
 
     def clean(self):
+        """Check-in va check-out vaqtlarini tekshirish"""
         if self.check_out and self.check_out < self.check_in:
-            raise ValidationError(_('Tugash vaqti boshlanish vaqtidan oldin bo‘lishi mumkin emas.'))
+            raise ValidationError('Tugash vaqti boshlanish vaqtidan oldin bo‘lishi mumkin emas.')
         if self.check_out and (self.check_out - self.check_in) > timedelta(hours=24):
-            raise ValidationError(_('Ish vaqti kuniga 24 soatdan oshmasligi kerak.'))
+            raise ValidationError('Ish vaqti kuniga 24 soatdan oshmasligi kerak.')
 
+
+    @property
     def hours_worked(self):
         """Ishlangan vaqtni HH:MM formatida qaytarish"""
         if self.check_out:
@@ -137,31 +140,32 @@ class WorkLog(models.Model):
             return f"{hours:02}:{minutes:02}"  # HH:MM format
         return "00:00"
 
-    def late_check_in_hours(self):  # ✅ Joy tashlash to‘g‘ri
-        """Hodim 09:00 dan kechiksa, kechikish vaqtini qaytaradi (HH:MM formatida)."""
-        if self.check_in and self.check_in.time() > time(9, 0):
-            late_seconds = (self.check_in - self.check_in.replace(hour=9, minute=0, second=0)).total_seconds()
-            return self.format_hours_minutes(late_seconds)
+    @property
+    def late_check_in_hours(self):
+        """Hodim 08:00 dan kechiksa, kechikish vaqtini qaytaradi (HH:MM formatida)."""
+        if self.check_in:
+            local_check_in = localtime(self.check_in)  # ✅ UTC vaqtni lokal vaqtga o‘tkazish
+            # local_check_in = self.check_in  # ✅ UTC vaqtni lokal vaqtga o‘tkazish
+            if local_check_in.time() > time(8, 0):
+                late_seconds = (local_check_in - local_check_in.replace(hour=8, minute=0, second=0)).total_seconds()
+                return self.format_hours_minutes(late_seconds)  # ✅ TO‘G‘RI METOD NOMI
         return "00:00"
 
+    @property
     def early_leave_hours(self):
-        """Hodim 18:00 dan oldin chiqsa, erta ketish vaqtini qaytaradi (HH:MM formatida)."""
-        if self.check_out and self.check_out.time() < time(18, 0):
-            early_seconds = (self.check_out.replace(hour=18, minute=0, second=0) - self.check_out).total_seconds()
-            return self.format_hours_minutes(early_seconds)
+        """Hodim 17:00 dan oldin chiqsa, erta ketish vaqtini qaytaradi (HH:MM formatida)."""
+        if self.check_out:
+            local_check_out = localtime(self.check_out)  # ✅ UTC vaqtni lokal vaqtga o‘tkazish
+            if local_check_out.time() < time(17, 0):  # Agar check-out vaqti 17:00 dan oldin bo'lsa
+                early_seconds = (local_check_out.replace(hour=17, minute=0, second=0) - local_check_out).total_seconds()
+                return self.format_hours_minutes(early_seconds)  # ✅ TO‘G‘RI METOD NOMI
         return "00:00"
 
-    def format_hours_minutes(self, total_seconds):
+    def format_hours_minutes(self, total_seconds):  # ✅ TO‘G‘RI METOD NOMI
         """Sekundlarni HH:MM formatiga o‘zgartirish."""
         hours = int(total_seconds // 3600)
         minutes = int((total_seconds % 3600) // 60)
-        return f"{hours:02}:{minutes:02}"  # HH:MM format"
+        return f"{hours:02}:{minutes:02}"
 
     def __str__(self):
         return f"{self.hodim} - {localtime(self.check_in)}"
-
-    @property
-    def worked_hours(self):
-        if self.check_out:
-            return round((self.check_out - self.check_in).total_seconds() / 3600, 2)
-        return 0

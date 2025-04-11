@@ -6,9 +6,8 @@
 <div class="container">
     <h2 class="mt-4 mb-3">Ish Vaqti Qo‘shish</h2>
     
-    <h4>{{ hodim.first_name }} {{ hodim.last_name }}</h4> <!-- ✅ Hodim ismi avtomatik chiqadi -->
+    <h4>{{ hodim.first_name }} {{ hodim.last_name }}</h4>
 
-    <!-- ✅ Xabarlar ko‘rsatish -->
     {% if messages %}
         {% for message in messages %}
             <div class="alert alert-{{ message.tags }} mt-3">{{ message }}</div>
@@ -16,26 +15,22 @@
     {% endif %}
 
     {% if last_worklog and not last_worklog.check_out %}
-        <!-- ✅ Hodim kirgan, lekin chiqmagan -->
         <p class="text-danger">⚠️ Hodim {{ last_worklog.check_in|time:"H:i" }} da kelgan. Faqat ketish vaqtini kiriting.</p>
     {% elif last_worklog %}
-        <!-- ✅ Hodim allaqachon kirib va chiqib bo‘lgan -->
         <p class="text-success">✅ Hodim oxirgi marta {{ last_worklog.check_out|time:"H:i" }} da ishni tugatgan.</p>
     {% else %}
         <p class="text-info">ℹ️ Bu hodim bugun hali ish boshlamagan.</p>
     {% endif %}
 
-    <form method="post">
+    <form method="post" id="worklogForm">
         {% csrf_token %}
 
         {% if last_worklog and not last_worklog.check_out %}
-            <!-- ✅ Faqat ketish vaqtini kiritish mumkin -->
             <div class="mb-3">
                 <label for="check_out" class="form-label">Ketish vaqti</label>
                 <input type="time" id="check_out" name="check_out" class="form-control" required>
             </div>
         {% else %}
-            <!-- ✅ Yangi kelish vaqti kiritish mumkin -->
             <div class="mb-3">
                 <label for="check_in" class="form-label">Kirish vaqti</label>
                 <input type="time" id="check_in" name="check_in" class="form-control" required>
@@ -47,8 +42,10 @@
             </div>
         {% endif %}
 
-        <button type="submit" class="btn btn-primary">Saqlash</button>
+        <button type="submit" class="btn btn-primary">✅ Saqlash</button>
     </form>
+
+    <a href="{% url 'hodimlar:worklog_list' %}" class="btn btn-success mt-3">📜 Ish vaqti ro‘yxatiga o‘tish</a>
 
     <h3 class="mt-4">Bugungi Ish Vaqtlari</h3>
     <table class="table table-bordered">
@@ -70,7 +67,13 @@
                         <span class="text-warning">Hali ketmagan</span>
                     {% endif %}
                 </td>
-                <td>{{ worklog.hours_worked }}</td>
+                <td>
+                    {% if worklog.hours_worked is not None %}
+                        {{ worklog.hours_worked }}
+                    {% else %}
+                        <span class="text-warning">Hali hisoblanmagan</span>
+                    {% endif %}
+                </td>
             </tr>
             {% empty %}
             <tr>
@@ -80,4 +83,20 @@
         </tbody>
     </table>
 </div>
+
+<!-- ✅ JavaScript orqali tekshirish -->
+<script>
+document.getElementById("worklogForm").addEventListener("submit", function(event) {
+    var checkIn = document.getElementById("check_in") ? document.getElementById("check_in").value : null;
+    var checkOut = document.getElementById("check_out") ? document.getElementById("check_out").value : null;
+
+    if (checkIn && checkOut) {
+        if (checkOut <= checkIn) {
+            alert("❌ Xatolik: Ketish vaqti kelish vaqtidan oldin bo‘lishi mumkin emas!");
+            event.preventDefault(); // Formani jo‘natilishiga yo‘l qo‘ymaydi
+        }
+    }
+});
+</script>
+
 {% endblock %}

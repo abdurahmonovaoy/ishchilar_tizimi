@@ -1,12 +1,82 @@
 {% extends 'base.html' %}
 {% block content %}
-<h2> Hodimni Tahrirlash</h2>
 
-<form method="POST">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Yangilash</button>
-</form>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10 col-lg-8">
+            <div class="card shadow-lg border-0 rounded-4 p-4">
+                <h3 class="text-center text-success fw-bold mb-4">Hodim Maʼlumotlarini Tahrirlash</h3>
 
-<a href="{% url 'hodimlar:hodim_list' %}"> Orqaga</a>
+                <form method="POST" novalidate>
+                    {% csrf_token %}
+
+                    <div class="row g-3">
+                        <!-- Ismi -->
+                        <div class="col-md-6">
+                            <label for="first_name" class="form-label fw-bold">Ismi</label>
+                            <input type="text" name="first_name" id="first_name"
+                                   class="form-control form-control-lg rounded-3 shadow-sm"
+                                   placeholder="Masalan: Barno"
+                                   value="{{ form.first_name.value }}">
+                        </div>
+
+                        <!-- Familiyasi -->
+                        <div class="col-md-6">
+                            <label for="last_name" class="form-label fw-bold">Familiyasi</label>
+                            <input type="text" name="last_name" id="last_name"
+                                   class="form-control form-control-lg rounded-3 shadow-sm"
+                                   placeholder="Masalan: Qochqorova"
+                                   value="{{ form.last_name.value }}">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <!-- Telefon raqami -->
+                        <div class="col-md-6">
+                            <label for="phone_number" class="form-label fw-bold">Telefon raqami</label>
+                            <input type="text" name="phone_number" class="form-control"
+                                    value="{{ form.phone_number.value|default:hodim.phone_number }}">
+
+
+                        </div>
+
+                        <!-- Lavozimi -->
+                        <div class="col-md-6">
+                            <label for="position" class="form-label fw-bold">Lavozimi</label>
+                            <select name="lavozim" class="form-select">
+                                {% for key, value in LAVOZIMLAR %}
+                                    <option value="{{ key }}" {% if form.lavozim.value == key or hodim.lavozim == key %}selected{% endif %}>{{ value }}</option>
+                                {% endfor %}
+                            </select>
+                            
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <!-- Tug‘ilgan sana -->
+                        <div class="col-md-6">
+                            <label for="birth_date" class="form-label fw-bold">Tug‘ilgan sana</label>
+                            <input type="date" name="birth_date" class="form-control"
+                                    value="{{ form.birth_date.value|default:hodim.birth_date|date:'Y-m-d' }}">
+
+                        </div>
+                    </div>
+
+                    <!-- Tugmalar -->
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'hodimlar:hodim_list' %}"
+                           class="btn btn-outline-secondary fw-bold px-4 py-2 rounded-pill">
+                            <i class="bi bi-arrow-left-circle me-2"></i>Orqaga
+                        </a>
+                        <button type="submit"
+                                class="btn btn-success fw-bold px-4 py-2 rounded-pill">
+                            <i class="bi bi-check2-circle me-2"></i>Yangilash
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

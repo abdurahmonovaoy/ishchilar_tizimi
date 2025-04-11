@@ -1,106 +1,189 @@
-{% extends "base.html" %}
-
-{% block title %}📊 Ish Statistikasi{% endblock %}
+{% extends base_template %}
 
 {% block content %}
-    <h1>Foydalanuvchi - Oylik Hisobot</h1>
-    <p>{{ message }}</p>
-
-    <h3>📊 Bugungi va Oylik Ish Statistikasi</h3>
-
+<div class="container mt-5">
     <div class="row">
-        <!-- Jami Hodimlar -->
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
+        <!-- 📊 Davomat Statistikasi Grafikasi -->
+        <div class="col-md-12 mb-4">
+            <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title">Jami Hodimlar</h5>
-                    <p class="card-text">{{ total_employees }} ta</p>
+                    <h5 class="card-title text-center mb-4">📊 {{ month }} – Hodimlarning Davomat Statistikasi</h5>
+                    <canvas id="attendanceStatsChart" style="max-height: 450px;"></canvas>
                 </div>
             </div>
         </div>
 
-        <!-- Bugun Ishga Kelganlar -->
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
+        <!-- 📈 Foyda Grafikasi -->
+        <div class="col-md-12 mb-4">
+            <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title">Bugun Ishga Kelganlar</h5>
-                    <p class="card-text">{{ present_today }} ta</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Bugun Ishga Kelmadi -->
-        <div class="col-md-3">
-            <div class="card bg-danger text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Bugun Ishga Kelmadi</h5>
-                    <p class="card-text">{{ absent_today }} ta</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Bugungi O‘rtacha Ish Vaqti -->
-        <div class="col-md-3">
-            <div class="card bg-warning text-dark">
-                <div class="card-body">
-                    <h5 class="card-title">Bugungi O‘rtacha Ish Vaqti</h5>
-                    <p class="card-text">{{ today_avg_work_hours }} soat</p>
+                    <h5 class="card-title text-center mb-4">📈 Foyda (%) Statistikasi</h5>
+                    <canvas id="benefitStatsChart" style="max-height: 450px;"></canvas>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <h3 class="mt-4">📊 Oylik Ish Statistikasi ({{ month }})</h3>
+<!-- JSON ma'lumotlar -->
+{{ employee_names|json_script:"employeeNames" }}
+{{ attended_days|json_script:"attendedDays" }}
+{{ absent_days|json_script:"absentDays" }}
+{{ late_comers|json_script:"lateDays" }}
+{{ on_time_days|json_script:"onTimeDays" }}
+{{ benefits|json_script:"benefits" }}
 
-    <div class="row">
-        <!-- Oylik O‘rtacha Ish Vaqti -->
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Oylik O‘rtacha Ish Vaqti</h5>
-                    <p class="card-text">{{ monthly_avg_work_hours }} soat</p>
-                </div>
-            </div>
-        </div>
-    </div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- 📊 Ish vaqti grafikasi -->
-    <div class="card mt-4">
-        <div class="card-body">
-            <h5 class="card-title">Hodimlarning Ishlagan Soatlari (Oylik)</h5>
-            <canvas id="workHoursChart"></canvas>
-        </div>
-    </div>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const employeeNames = JSON.parse(JSON.parse(document.getElementById("employeeNames").textContent));
+        const attendedDays = JSON.parse(JSON.parse(document.getElementById("attendedDays").textContent));
+        const absentDays = JSON.parse(JSON.parse(document.getElementById("absentDays").textContent));
+        const lateDays = JSON.parse(JSON.parse(document.getElementById("lateDays").textContent));
+        const onTimeDays = JSON.parse(JSON.parse(document.getElementById("onTimeDays").textContent));
+        const benefits = JSON.parse(JSON.parse(document.getElementById("benefits").textContent));
 
-    <!-- Chart.js Kutubxonasini ulash -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            var ctx = document.getElementById("workHoursChart").getContext("2d");
-
-            var employeeNames = JSON.parse('{{ employee_names|escapejs }}'); 
-            var workHours = JSON.parse('{{ work_hours|escapejs }}');
-
-            var workHoursChart = new Chart(ctx, {
-                type: "bar",
-                data: {
-                    labels: employeeNames,  
-                    datasets: [{
-                        label: "Oylik Ish Soatlari",
-                        data: workHours,  
-                        backgroundColor: "rgba(75, 192, 192, 0.6)",
-                        borderColor: "rgba(75, 192, 192, 1)",
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
+        // 1. Davomat Statistikasi (Bar chart)
+        const ctx1 = document.getElementById("attendanceStatsChart").getContext("2d");
+/*
+        new Chart(ctx1, {
+            type: "bar",
+            data: {
+                labels: employeeNames,
+                datasets: [
+                    {
+                        label: "✅ Kelgan Kunlar",
+                        data: attendedDays,
+                        backgroundColor: "rgba(0, 200, 83, 0.7)"
+                    },
+                    {
+                        label: "🟡 Kech Kelgan Kunlar",
+                        data: lateDays,
+                        backgroundColor: "rgba(255, 193, 7, 0.7)"
+                    },
+                    {
+                        label: "❌ Kelmagan Kunlar",
+                        data: absentDays,
+                        backgroundColor: "rgba(244, 67, 54, 0.7)"
+                    },
+                    {
+                        label: "🔵 Vaqtida Kelgan Kunlar",
+                        data: onTimeDays,
+                        backgroundColor: "rgba(33, 150, 243, 0.7)"
                     }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: "index",
+                    intersect: false,
+                },
+                stacked: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: "Kunlar soni" }
+                    },
+                    x: {
+                        title: { display: true, text: "Hodimlar" }
+                    }
+                },
+                plugins: {
+                    legend: { position: "bottom" },
+                    tooltip: { enabled: true }
                 }
-            });
+            }
         });
-    </script>
+*/
+        new Chart(ctx1, {
+    type: "bar",
+    data: {
+        labels: employeeNames,
+        datasets: [
+            
+            {
+                label: "🟡 Kech Kelgan Kunlar",
+                data: lateDays,
+                backgroundColor: "rgba(255, 193, 7, 0.7)"
+            },
+            {
+                label: "❌ Kelmagan Kunlar",
+                data: absentDays,
+                backgroundColor: "rgba(244, 67, 54, 0.7)"
+            },
+            {
+                label: "🔵 Vaqtida Kelgan Kunlar",
+                data: onTimeDays,
+                backgroundColor: "rgba(33, 150, 243, 0.7)"
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+            mode: "index",
+            intersect: false
+        },
+        scales: {
+            x: {
+                stacked: true,
+                title: { display: true, text: "Hodimlar" }
+            },
+            y: {
+                stacked: true,
+                beginAtZero: true,
+                title: { display: true, text: "Kunlar soni" }
+            }
+        },
+        plugins: {
+            legend: { position: "bottom" },
+            tooltip: { enabled: true }
+        }
+    }
+});
+
+
+        // 2. Foyda (%) Grafikasi (Line chart)
+        const ctx2 = document.getElementById("benefitStatsChart").getContext("2d");
+
+        new Chart(ctx2, {
+            type: "line",
+            data: {
+                labels: employeeNames,
+                datasets: [
+                    {
+                        label: "📈 Foyda (%)",
+                        data: benefits,
+                        borderColor: "rgba(156, 39, 176, 1)",
+                        backgroundColor: "rgba(156, 39, 176, 0.2)",
+                        fill: true,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: "Foyda (%)" },
+                        ticks: { max: 100, min: 0 }
+                    },
+                    x: {
+                        title: { display: true, text: "Hodimlar" }
+                    }
+                },
+                plugins: {
+                    legend: { position: "bottom" },
+                    tooltip: { enabled: true }
+                }
+            }
+        });
+    });
+</script>
 {% endblock %}

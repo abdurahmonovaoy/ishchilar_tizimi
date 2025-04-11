@@ -4,12 +4,12 @@ from django.core.exceptions import ValidationError
 from django.forms.widgets import DateTimeInput
 
 class HodimForm(forms.ModelForm):
-    lavozim = forms.ChoiceField(choices=LAVOZIMLAR, required=True)  # ✅ Lavozimni tanlash majburiy
+    lavozim = forms.ChoiceField(choices=LAVOZIMLAR, required=True, initial='Tikuvchi')  # Default value
 
     birth_date = forms.DateField(
-        widget=forms.TextInput(attrs={'placeholder': 'DD.MM.YYYY', 'class': 'form-control'}),
-        input_formats=['%d.%m.%Y']
-    )
+    widget=forms.DateInput(attrs={'placeholder': 'DD.MM.YYYY', 'class': 'form-control'}, format='%d.%m.%Y'),
+    input_formats=['%d.%m.%Y', '%Y-%m-%d']
+)
 
     class Meta:
         model = Hodim
@@ -35,7 +35,14 @@ class WorkLogForm(forms.ModelForm):
         check_in = cleaned_data.get("check_in")
         check_out = cleaned_data.get("check_out")
 
-        if check_out and check_out < check_in:
-            raise ValidationError("Tugash vaqti boshlanish vaqtidan oldin bo'lishi mumkin emas!")
+        # Agar check_in va check_out mavjud bo'lsa, quyidagi tekshiruvlarni bajarish:
+        if check_in and check_out:
+            # Agar check_out check_in'dan oldin bo'lsa, xato beradi:
+            if check_out < check_in:
+                raise ValidationError("Tugash vaqti boshlanish vaqtidan oldin bo'lishi mumkin emas!")
+            
+            # Agar check_out va check_in orasidagi vaqt 24 soatdan oshsa, xato beradi:
+            if (check_out - check_in) > timedelta(hours=24):
+                raise ValidationError("Ish vaqti kuniga 24 soatdan oshmasligi kerak!")
 
         return cleaned_data

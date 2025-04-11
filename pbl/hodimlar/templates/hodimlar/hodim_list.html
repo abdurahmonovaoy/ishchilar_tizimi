@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "admin_base.html" %}
 {% block title %}Hodimlar Ro‘yxati{% endblock %}
 
 {% block content %}
@@ -33,10 +33,32 @@
                 <a href="{% url 'hodimlar:edit_hodim' hodim.id %}" class="btn btn-warning btn-sm">
                     <i class="bi bi-pencil-square"></i>
                 </a>
-                <a href="{% url 'hodimlar:delete_hodim' hodim.id %}" class="btn btn-danger btn-sm" 
-                   onclick="return confirm('Haqiqatan ham o‘chirmoqchimisiz?');">
-                    <i class="bi bi-trash"></i>
+                <!-- O‘chirish tugmachasi -->
+<button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal{{ hodim.id }}">
+    <i class="bi bi-trash"></i>
+</button>
+
+<!-- O‘chirishni tasdiqlash modal oynasi -->
+<div class="modal fade" id="deleteModal{{ hodim.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ hodim.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel{{ hodim.id }}">Hodimni o‘chirish</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>{{ hodim.first_name }} {{ hodim.last_name }}</strong> ismli hodimni o‘chirmoqchimisiz?</p>
+                <p>Bu amalni qaytarib bo‘lmaydi!</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bekor qilish</button>
+                <a href="{% url 'hodimlar:delete_hodim' hodim.id %}" class="btn btn-danger">
+                    <i class="bi bi-trash"></i> Ha, o‘chirish
                 </a>
+            </div>
+        </div>
+    </div>
+</div>
                 <a href="{% url 'hodimlar:add_worklog' hodim.id %}" class="btn btn-success btn-sm">
                     <i class="bi bi-clock"></i>
                 </a>

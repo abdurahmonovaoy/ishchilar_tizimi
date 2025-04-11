@@ -16,10 +16,10 @@ from django.http import JsonResponse, HttpResponse
 from datetime import date, timedelta, datetime
 from django.utils.timezone import make_aware, get_current_timezone
 from datetime import datetime, time
-
-
-from .models import Hodim, WorkLog, AdminUser
+from .models import Hodim, WorkLog, AdminUser, LAVOZIMLAR
 from .forms import HodimForm, WorkLogForm
+from django.utils.timezone import localtime
+
 
 
 def bugungi_keldi_kelmadi(request):
@@ -41,8 +41,31 @@ def bugungi_keldi_kelmadi(request):
 
 
 def barcha_hodimlar(request):
-    hodimlar = Hodim.objects.all()
-    return render(request, 'hodimlar/hodim_list.html', {'hodimlar': hodimlar})
+    query = request.GET.get('q', '')  # Qidiruv so‘rovi
+    today = date.today()  # Bugungi sana
+
+    # Hodimlarni olish
+    if query:
+        hodimlar = Hodim.objects.filter(first_name__icontains=query) | Hodim.objects.filter(last_name__icontains=query)
+    else:
+        hodimlar = Hodim.objects.all()
+
+    # Hodimlarning ish loglarini olish
+    hodimlar_data = []
+    for hodim in hodimlar:
+        worklog = WorkLog.objects.filter(hodim=hodim, check_in__date=today).first()
+        hodimlar_data.append({
+            'first_name': hodim.first_name,
+            'last_name': hodim.last_name,
+            'check_in': worklog.check_in.strftime('%H:%M') if worklog and worklog.check_in else None,
+            'check_out': worklog.check_out.strftime('%H:%M') if worklog and worklog.check_out else None,
+        })
+
+    return render(request, 'hodimlar/barcha_hodimlar.html', {
+        'today': today,
+        'query': query,
+        'hodimlar_data': hodimlar_data
+    })
 
 def bugungi_hodimlar(request):
     today = localtime(now()).date()  # Bugungi sana
@@ -169,25 +192,38 @@ def export_to_pdf(request):
     p.save()
     return response
 
-# 📄 Ish vaqtlari sahifasi (AJAX va filter qo‘llangan)
 def worklog_list(request):
+    """ Ish vaqtlari sahifasi (AJAX va filter qo‘llangan) """
     qidirish = request.GET.get("qidirish", "").strip()
     date_filter = request.GET.get("date", "").strip()
     
     worklogs = WorkLog.objects.select_related("hodim").all()
-    if qidirish:
-        worklogs = worklogs.filter(hodim__first_name__icontains=qidirish) | worklogs.filter(hodim__last_name__icontains=qidirish)
-    if date_filter:
-        worklogs = worklogs.filter(check_in__date=date_filter)
-
     hodimlar = Hodim.objects.all()
-    statistics = daily_statistics()
     
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest":  
-        html = render_to_string("hodimlar/worklog_table.html", {"worklogs": worklogs, "hodimlar": hodimlar})
-        return JsonResponse({"html": html})
+    # Qidirish bo‘yicha filtr
+    if qidirish:
+        worklogs = worklogs.filter(
+            Q(hodim__first_name__icontains=qidirish) |
+            Q(hodim__last_name__icontains=qidirish)
+        )
     
-    return render(request, "hodimlar/worklog_list.html", {"worklogs": worklogs, "hodimlar": hodimlar, "statistics": statistics})
+    # Sanaga qarab filtr
+    if date_filter:
+        try:
+            date_obj = datetime.strptime(date_filter, "%Y-%m-%d").date()
+            worklogs = worklogs.filter(check_in__date=date_obj)
+        except ValueError:
+            pass  # Noto‘g‘ri sana formati kiritilgan bo‘lsa, hech narsa qilmaymiz
+    
+    # Statistikalar uchun konsolga chiqarish
+    for log in worklogs:
+        print(f"Hodim: {log.hodim.first_name} {log.hodim.last_name}, Kechikish: {log.late_check_in_hours}, Erta ketish: {log.early_leave_hours}")    
+
+    return render(request, "hodimlar/worklog_list.html", {
+        "worklogs": worklogs,
+        "hodimlar": hodimlar
+})
+
 
 def monthly_work_hours(request):
     """Hodimlarning joriy oydagi ishlagan soatlarini hisoblash"""
@@ -262,32 +298,6 @@ def admin_logout(request):
     logout(request)
     return redirect("hodimlar:admin_login")
 
-def worklog_list(request):
-    """ Ish vaqtlarini chiqaruvchi sahifa """
-    worklogs = WorkLog.objects.select_related("hodim").all()
-    hodimlar = Hodim.objects.all()  # Hodimlar ro‘yxatini olish
-
-    # Qidirish va filtrlash
-    qidirish = request.GET.get('search', '').strip()
-    filter_date = request.GET.get('date', '')
-
-    if qidirish:
-        worklogs = worklogs.filter(
-            Q(hodim__first_name__icontains=qidirish) | Q(hodim__last_name__icontains=qidirish)
-        )
-
-    if filter_date:
-        worklogs = worklogs.filter(check_in__date=filter_date)
-
-    # ✅ Konsolga chiqishlar oldin bajariladi
-    for log in worklogs:
-        print(f"Hodim: {log.hodim.first_name} {log.hodim.last_name}, Kechikish: {log.late_check_in_hours}, Erta ketish: {log.early_leave_hours}")
-
-    return render(request, 'hodimlar/worklog_list.html', {
-        'worklogs': worklogs,
-        'hodimlar': hodimlar
-    })
-
 
 def home_view(request):
     hodimlar = Hodim.objects.all()
@@ -316,26 +326,40 @@ def home_view(request):
 
 def add_hodim(request):
     if request.method == "POST":
+        print("POST MA'LUMOTLAR:", request.POST)  # ✅ Ma'lumotlarni konsolga chiqaramiz
+
         form = HodimForm(request.POST)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Hodim muvaffaqiyatli qo'shildi!")
-            return redirect('hodimlar:hodim_list')
+            try:
+                form.save()
+                messages.success(request, "✅ Yangi hodim muvaffaqiyatli qo‘shildi!")
+                return redirect('hodimlar:hodim_list')
+            except Exception as e:
+                messages.error(request, f"❌ Xatolik: {str(e)}")
+                print("Xatolik:", e)  # ✅ Xatolikni konsolga chiqaramiz
+        else:
+            messages.error(request, "❌ Xatolik bor! Iltimos, ma'lumotlarni tekshiring.")
+            print("Form Xatolari:", form.errors)  # ✅ Formani xatolarini konsolga chiqaramiz
+
     else:
         form = HodimForm()
-    return render(request, 'hodimlar/add_hodim.html', {'form': form})
+
+    return render(request, 'hodimlar/add_hodim.html', {
+        'form': form,
+        'LAVOZIMLAR': LAVOZIMLAR  # ✅ Endi xato chiqmaydi
+    })
+
 
 def hodim_list(request):
     query = request.GET.get('q', '').strip()
     hodimlar = Hodim.objects.all()
 
     if query:
+        # `Q` obyekti yordamida bir nechta shartlarni birlashtirish
         hodimlar = hodimlar.filter(
-            first_name__icontains=query
-        ) | hodimlar.filter(
-            last_name__icontains=query
-        ) | hodimlar.filter(
-            lavozim__icontains=query
+            Q(first_name__icontains=query) | 
+            Q(last_name__icontains=query) | 
+            Q(lavozim__icontains=query)
         )
 
     context = {
@@ -424,97 +448,71 @@ def add_worklog(request, hodim_id):
 
 
 def monthly_report(request):
-    """ 🔹 Oylik ish vaqtlari va kechikish statistikasi """
-
     if request.user.is_staff:
-        template_name = "admin/monthly_report.html"
+        template_name = "hodimlar/monthly_report.html"
         base_template = "admin_base.html"
     else:
-        template_name = "hodimlar/monthly_report.html"
-        base_template = "base.html"
+        return render(request, "403.html")
 
     today = date.today()
     first_day = today.replace(day=1)
     last_day = (first_day + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    total_days_in_month = last_day.day
 
-    work_start = time(8, 0)  # Ish boshlanishi: 08:00
-    work_end = time(17, 0)  # Ish tugashi: 17:00
-
-    total_employees = Hodim.objects.count()
-    today_work_logs = WorkLog.objects.filter(check_in__date=today)
-    present_today = today_work_logs.count()
-    absent_today = total_employees - present_today
-
-    today_total_hours = sum(
-        (log.check_out - log.check_in).total_seconds() / 3600
-        for log in today_work_logs if log.check_out
-    )
-    today_avg_work_hours = round(today_total_hours / present_today, 2) if present_today else 0
+    work_start = time(8, 0)
+    work_end = time(17, 0)
 
     monthly_work_logs = WorkLog.objects.filter(check_in__date__range=[first_day, last_day])
-    monthly_total_hours = sum(
-        (log.check_out - log.check_in).total_seconds() / 3600
-        for log in monthly_work_logs if log.check_out
-    )
-    monthly_avg_work_hours = round(monthly_total_hours / max(len(monthly_work_logs), 1), 2)
 
-    # ✅ Hodimlar bo‘yicha ish vaqtlari va kechikish statistikasini hisoblash
-    work_hours_data = {}
-    late_days_data = {}  # Kechikish (soat)
-    early_leave_data = {}  # Erta ketish (soat)
-    absent_days_data = {}
-    late_comers_data = {}  # Kech kelganlar (necha kun kechikkan)
-    on_time_data = {}  # Vaqtida kelganlar (necha kun vaqtida kelgan)
+    employee_names = []
+    attended_days = []
+    absent_days = []
+    late_days = []
+    on_time_days = []
+    benefits = []
 
     for hodim in Hodim.objects.all():
-        work_logs = monthly_work_logs.filter(hodim=hodim)
         full_name = f"{hodim.first_name} {hodim.last_name}"
+        work_logs = monthly_work_logs.filter(hodim=hodim)
 
-        total_work_seconds = 0
-        total_late_seconds = 0
-        total_early_leave_seconds = 0
-        late_days = 0
-        on_time_days = 0
+        attended = 0
+        absent = 0
+        late = 0
+        on_time = 0
+
+        days_with_checkin = set()
 
         for log in work_logs:
             if log.check_in:
-                check_in_time = log.check_in.time()
-                check_out_time = log.check_out.time() if log.check_out else None
+                log_date = log.check_in.date()
+                if log_date not in days_with_checkin:
+                    attended += 1
+                    check_in_local = localtime(log.check_in)  # ✅ Naive emas, localized
+                    check_in_time = check_in_local.time()  # ✅ UTC vaqtni lokal vaqtga o‘tkazish
 
-                # ⏳ **Kechikishni hisoblash (08:00 dan 1 soniya ham kechiksa kechikish hisoblanadi)**
-                if check_in_time >= work_start:
-                    total_late_seconds += (datetime.combine(date.min, check_in_time) - datetime.combine(date.min, work_start)).seconds
-                    late_days += 1  # 🚀 **Necha kun kechikkanligini oshiramiz**
-                else:
-                    on_time_days += 1  # ✅ **Vaqtida kelgan kunlar sonini oshiramiz**
+                    if check_in_time > work_start:
+                        late += 1
+                    else:
+                        on_time += 1
+                    days_with_checkin.add(log_date)
 
-                # 🕒 **Erta ketishni hisoblash (17:00 dan oldin chiqsa hisoblash)**
-                if check_out_time and check_out_time < work_end:
-                    total_early_leave_seconds += (datetime.combine(date.min, work_end) - datetime.combine(date.min, check_out_time)).seconds
+        absent = total_days_in_month - len(days_with_checkin)
+        benefit = round(100 - (absent * 100 / total_days_in_month), 2)
 
-                # 🕘 **Ishlangan soatlarni hisoblash**
-                if log.check_out:
-                    total_work_seconds += (log.check_out - log.check_in).total_seconds()
-
-        work_hours_data[full_name] = WorkLog.format_hours_minutes(None, total_work_seconds)
-        late_days_data[full_name] = WorkLog.format_hours_minutes(None, total_late_seconds)
-        early_leave_data[full_name] = WorkLog.format_hours_minutes(None, total_early_leave_seconds)
-        absent_days_data[full_name] = last_day.day - len(work_logs)
-        late_comers_data[full_name] = late_days  # ✅ **Necha kun kechikkan?**
-        on_time_data[full_name] = on_time_days  # ✅ **Necha kun vaqtida kelgan?**
-
+        employee_names.append(full_name)
+        attended_days.append(attended)
+        absent_days.append(absent)
+        late_days.append(late)
+        on_time_days.append(on_time)
+        benefits.append(benefit)
+    print(employee_names, attended_days)
     context = {
-        "total_employees": total_employees,
-        "present_today": present_today,
-        "absent_today": absent_today,
-        "today_avg_work_hours": today_avg_work_hours,
-        "monthly_avg_work_hours": monthly_avg_work_hours,
-        "employee_names": json.dumps(list(work_hours_data.keys())),
-        "work_hours": json.dumps(list(work_hours_data.values())),
-        "late_days": json.dumps(list(late_days_data.values())),
-        "on_time_days": json.dumps(list(on_time_data.values())),
-        "absent_days": json.dumps(list(absent_days_data.values())),
-        "late_comers": json.dumps(list(late_comers_data.values())),  # 🚀 **Kech kelgan kunlar soni**
+        "employee_names": json.dumps(employee_names),
+        "attended_days": json.dumps(attended_days),
+        "absent_days": json.dumps(absent_days),
+        "late_comers": json.dumps(late_days),
+        "on_time_days": json.dumps(on_time_days),
+        "benefits": json.dumps(benefits),
         "month": today.strftime('%B %Y'),
         "base_template": base_template,
     }
@@ -522,17 +520,35 @@ def monthly_report(request):
     return render(request, template_name, context)
 
 
+
 def edit_hodim(request, id):
     hodim = get_object_or_404(Hodim, id=id)
     if request.method == "POST":
         form = HodimForm(request.POST, instance=hodim)
         if form.is_valid():
-            form.save()
+            form.save()  # Yangilashni saqlash
             messages.success(request, "Hodim ma'lumotlari yangilandi!")
-            return redirect('hodimlar:hodim_list')  # ✅ TO‘G‘RI YO‘NALTIRISH
+            return redirect('hodimlar:hodim_list')  # Yangilangan ro‘yxatni ko‘rsatish
+        else:
+            print(form.errors)  # Xatoliklar haqida ma'lumot olish
+            messages.error(request, "Formani to'g'ri to'ldirish kerak!")
     else:
         form = HodimForm(instance=hodim)
-    return render(request, 'hodimlar/edit_hodim.html', {'form': form, 'hodim': hodim})
+
+    LAVOZIMLAR = [
+        ('Tikuvch', 'Tikuvchi'),
+        ('Orta kesuv', 'Orta kesuv'),
+        ('Kesuv', 'Kesuv'),
+        ('Mehanik', 'Mehanik'),
+        ('Ish bay', 'Ish bay'),
+    ]
+
+    return render(request, 'hodimlar/edit_hodim.html', {
+        'form': form,
+        'hodim': hodim,
+        'LAVOZIMLAR': LAVOZIMLAR
+    })
+
 
 def delete_hodim(request, id):
     hodim = get_object_or_404(Hodim, id=id)
