@@ -1,6 +1,6 @@
 # Virtual Environment
 my_env/
-
+.gitignore/
 # Claude Code
 .claude/
 
