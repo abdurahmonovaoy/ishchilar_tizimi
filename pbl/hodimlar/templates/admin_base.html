@@ -52,6 +52,12 @@
             padding-left: 25px;
         }
 
+        .sidebar a.active {
+            background: #0d6efd;
+            border-left: 4px solid #fff;
+            padding-left: 21px;
+        }
+
         .sidebar a i {
             margin-right: 10px;
         }
@@ -90,14 +96,29 @@
 
     <!-- ✅ Yon panel (Sidebar) -->
     <div class="sidebar">
-        <h3 class="text-center mb-4">⚙️ Admin Panel</h3>
-        <a href="{% url 'hodimlar:add_hodim' %}"><i class="bi bi-person-plus"></i> Hodim Qo‘shish</a>
-        <a href="{% url 'hodimlar:hodim_list' %}"><i class="bi bi-people"></i> Hodimlar</a>
-        <a href="{% url 'hodimlar:worklog_list' %}"><i class="bi bi-clock-history"></i> Ish Vaqtlari</a>
-        <a href="{% url 'hodimlar:admin_dashboard' %}"><i class="bi bi-speedometer2"></i> Dashboard</a>
+        <h3 class="text-center mb-4">Admin Panel</h3>
+        <a href="{% url 'hodimlar:bugungi_holati' %}" class="{% if request.resolver_match.url_name == 'bugungi_holati' %}active{% endif %}">
+            <i class="bi bi-calendar-check"></i> Bugungi Holat
+        </a>
+        <a href="{% url 'hodimlar:add_hodim' %}" class="{% if request.resolver_match.url_name == 'add_hodim' %}active{% endif %}">
+            <i class="bi bi-person-plus"></i> Hodim Qo'shish
+        </a>
+        <a href="{% url 'hodimlar:hodim_list' %}" class="{% if request.resolver_match.url_name == 'hodim_list' %}active{% endif %}">
+            <i class="bi bi-people"></i> Hodimlar
+        </a>
+        <a href="{% url 'hodimlar:worklog_list' %}" class="{% if request.resolver_match.url_name == 'worklog_list' %}active{% endif %}">
+            <i class="bi bi-clock-history"></i> Ish Vaqtlari
+        </a>
+        <a href="{% url 'hodimlar:admin_dashboard' %}" class="{% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Google Sheets
+        </a>
         {% if request.user.is_superuser %}
-        <a href="{% url 'hodimlar:monthly_report' %}"><i class="bi bi-bar-chart"></i> Statistikalar</a>
-        <a href="{% url 'hodimlar:admin_logout' %}" class="text-danger"><i class="bi bi-box-arrow-right"></i> Chiqish</a>
+        <a href="{% url 'hodimlar:monthly_report' %}" class="{% if request.resolver_match.url_name == 'monthly_report' %}active{% endif %}">
+            <i class="bi bi-bar-chart"></i> Statistikalar
+        </a>
+        <a href="{% url 'hodimlar:admin_logout' %}" class="text-danger">
+            <i class="bi bi-box-arrow-right"></i> Chiqish
+        </a>
         {% endif %}
     </div>
 
@@ -105,7 +126,10 @@
     <div class="content">
         {% if messages %}
         {% for message in messages %}
-        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+            {{ message|safe }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
         {% endfor %}
         {% endif %}
 

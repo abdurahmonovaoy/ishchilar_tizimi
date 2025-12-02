@@ -4,81 +4,178 @@
 
 {% block content %}
     <h3>Admin Panelga Xush Kelibsiz!</h3>
-    <p>Bu yerda tizim statistikalarini ko‘rishingiz mumkin.</p>
+    <p>Bu yerda Google Sheets bilan ma'lumotlarni boshqarishingiz mumkin.</p>
 
-    <div class="row">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Jami Hodimlar</h5>
-                    <p class="card-text">{{ total_employees }} ta</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Bugun Ishga Kelganlar</h5>
-                    <p class="card-text">{{ present_today }} ta</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card bg-danger text-white">
-                <div class="card-body">
-                    <h5 class="card-title">Bugun Ishga Kelmadi</h5>
-                    <p class="card-text">{{ absent_today }} ta</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- <div class="col-md-3">
-            <div class="card bg-warning text-dark">
-                <div class="card-body">
-                    <h5 class="card-title">O‘rtacha Ish Vaqti</h5>
-                    <p class="card-text">{{ avg_work_hours }} soat</p>
-                </div>
-            </div>
-        </div> -->
-    </div>
-
-    <!-- ✅ Grafik uchun joy -->
+    <!-- Google Sheets Integration -->
     <div class="card mt-4">
-        <div class="card-body">
-            <h5 class="card-title">Bugungi Ish Vaqtlari Statistikasi</h5>
-            <canvas id="workHoursChart"></canvas>
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-file-earmark-spreadsheet"></i> Google Sheets - Hodimlar Ma'lumotlari
+            </h5>
+            <div>
+                <button class="btn btn-light btn-sm" onclick="syncToGoogleSheets()" id="syncBtn">
+                    <i class="bi bi-cloud-upload"></i> Sync
+                </button>
+                <button class="btn btn-light btn-sm" onclick="refreshSheet()" id="refreshBtn">
+                    <i class="bi bi-arrow-clockwise"></i> Yangilash
+                </button>
+                <button class="btn btn-light btn-sm" onclick="toggleFullscreen()">
+                    <i class="bi bi-arrows-fullscreen"></i> Fullscreen
+                </button>
+                <a href="https://docs.google.com/spreadsheets/d/1D3Puron0uiUViwigFKLbCGWUCS4uRaHx70ZanzdIT0s/edit"
+                   target="_blank" class="btn btn-light btn-sm">
+                    <i class="bi bi-box-arrow-up-right"></i> Yangi oynada
+                </a>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <!-- Status Message -->
+            <div class="alert alert-info m-3" id="apiStatus" style="display: none;">
+                <span id="statusMessage"></span>
+            </div>
+
+            <!-- Embedded Google Sheet - Full Interface -->
+            <iframe
+                id="googleSheetFrame"
+                src="https://docs.google.com/spreadsheets/d/1D3Puron0uiUViwigFKLbCGWUCS4uRaHx70ZanzdIT0s/edit#gid=0"
+                style="width: 100%; height: 600px; border: none;"
+                allowfullscreen="true">
+            </iframe>
+        </div>
+        <div class="card-footer">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="autoSync">
+                        <label class="form-check-label" for="autoSync">Avtomatik Sync (5 daqiqada)</label>
+                    </div>
+                </div>
+                <div class="col-md-6 text-end">
+                    <small class="text-muted" id="lastSyncInfo">Oxirgi sync: --</small>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- ✅ Chart.js Kutubxonasini ulash -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        var ctx = document.getElementById("workHoursChart").getContext("2d");
+        let autoSyncInterval = null;
+        const SPREADSHEET_ID = '1D3Puron0uiUViwigFKLbCGWUCS4uRaHx70ZanzdIT0s';
 
-        var employeeNames = JSON.parse('{{ employee_names|escapejs }}'); 
-        var workHours = JSON.parse('{{ work_hours|escapejs }}');
+        // Sync to Google Sheets
+        async function syncToGoogleSheets() {
+            const btn = document.getElementById('syncBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Syncing...';
 
-        var workHoursChart = new Chart(ctx, {
-            type: "bar",
-            data: {
-                labels: employeeNames,  
-                datasets: [{
-                    label: "Bugungi Ishlagan Soatlar",
-                    data: workHours,  
-                    backgroundColor: "rgba(54, 162, 235, 0.6)",
-                    borderColor: "rgba(54, 162, 235, 1)",
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                scales: {
-                    y: {
-                        beginAtZero: true
+            try {
+                const response = await fetch('/api/google-sheets/sync/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        spreadsheet_id: SPREADSHEET_ID
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showStatus('success', `✅ ${result.rows_updated} qator Google Sheets ga yuklandi!`);
+                    document.getElementById('lastSyncInfo').textContent =
+                        `Oxirgi sync: ${new Date().toLocaleTimeString('uz-UZ')}`;
+                    // Refresh iframe to show new data
+                    refreshSheet();
+                } else {
+                    showStatus('danger', '❌ ' + result.message);
+                }
+            } catch (error) {
+                showStatus('danger', '❌ Xatolik: ' + error.message);
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Sync';
+        }
+
+        // Refresh the Google Sheet iframe
+        function refreshSheet() {
+            const iframe = document.getElementById('googleSheetFrame');
+            iframe.src = iframe.src;
+        }
+
+        // Toggle fullscreen for iframe
+        function toggleFullscreen() {
+            const iframe = document.getElementById('googleSheetFrame');
+            if (iframe.requestFullscreen) {
+                iframe.requestFullscreen();
+            } else if (iframe.webkitRequestFullscreen) {
+                iframe.webkitRequestFullscreen();
+            } else if (iframe.msRequestFullscreen) {
+                iframe.msRequestFullscreen();
+            }
+        }
+
+        // Show status message
+        function showStatus(type, message) {
+            const statusDiv = document.getElementById('apiStatus');
+            const messageSpan = document.getElementById('statusMessage');
+            statusDiv.className = `alert alert-${type} m-3`;
+            messageSpan.textContent = message;
+            statusDiv.style.display = 'block';
+
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // Get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
                     }
                 }
             }
+            return cookieValue;
+        }
+
+        // Auto-sync toggle
+        document.getElementById('autoSync').addEventListener('change', function() {
+            if (this.checked) {
+                syncToGoogleSheets();
+                autoSyncInterval = setInterval(syncToGoogleSheets, 5 * 60 * 1000);
+                showStatus('info', '🔄 Avtomatik sync yoqildi (har 5 daqiqada)');
+            } else {
+                if (autoSyncInterval) {
+                    clearInterval(autoSyncInterval);
+                    autoSyncInterval = null;
+                }
+                showStatus('info', '⏹️ Avtomatik sync o\'chirildi');
+            }
         });
     </script>
+
+    <style>
+        .sticky-top {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .display-6 {
+            font-size: 2rem;
+            font-weight: 600;
+        }
+        #googleSheetFrame {
+            background: #f5f5f5;
+        }
+    </style>
+
 {% endblock %}

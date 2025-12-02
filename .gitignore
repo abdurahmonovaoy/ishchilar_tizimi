@@ -1,3 +1,12 @@
+# Virtual Environment
+my_env/
+
+# Claude Code
+.claude/
+
+# Environment variables
+.env
+
 # Logs
 logs
 *.log

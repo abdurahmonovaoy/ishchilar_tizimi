@@ -1,27 +1,31 @@
 {% extends "admin_base.html" %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-3">📋 Ish Vaqtlari Ro‘yxati</h2>
+<div class="container-fluid mt-4" style="height: calc(100vh - 100px); display: flex; flex-direction: column;">
+    <div class="sticky-header">
+        <h2 class="mb-3">Ish Vaqtlari Ro'yxati</h2>
 
-    <!-- Qidirish va filtrlash shakli -->
-<form method="GET" class="d-flex gap-2 mb-3">
-    <input type="text" name="q" class="form-control me-2" placeholder="Hodim ismini kiriting..." class="form-control me-2" value="{{ query }}">
-    <input type="date" name="date" class="form-control" placeholder="Sanani tanlang" value="{{ date }}">
-    <button type="submit" class="btn btn-primary">🔍 Qidirish</button>
-</form>
+        <!-- Qidirish va filtrlash shakli -->
+        <form method="GET" class="d-flex gap-2 mb-3">
+            <input type="text" name="q" class="form-control me-2" placeholder="Hodim ismini kiriting..." value="{{ query }}">
+            <input type="date" name="date" id="dateFilter" class="form-control date-picker-left" value="{{ date }}" max="{{ today }}">
+            <button type="submit" class="btn btn-primary">Qidirish</button>
+            {% if query or date %}
+            <a href="{% url 'hodimlar:worklog_list' %}" class="btn btn-secondary">Tozalash</a>
+            {% endif %}
+        </form>
 
+        <!-- Hodimni tanlash uchun tugma -->
+        <div class="d-flex justify-content-between mb-3">
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selectHodimModal">
+                + Ish Vaqti Qo'shish
+            </button>
 
-    <!-- Hodimni tanlash uchun tugma -->
-    <div class="d-flex justify-content-between mb-3">
-        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selectHodimModal">
-            + Ish Vaqti Qo‘shish
-        </button>
-
-        <div class="text-center mt-3">
-            <a href="{% url 'hodimlar:bugungi_holati' %}" class="btn btn-outline-primary">
-                <i class="bi bi-list"></i> Hodimlar holati
-            </a>
+            <div class="text-center">
+                <a href="{% url 'hodimlar:bugungi_holati' %}" class="btn btn-outline-primary">
+                    <i class="bi bi-list"></i> Hodimlar holati
+                </a>
+            </div>
         </div>
     </div>
 
@@ -42,43 +46,104 @@
                             </a>
                         </li>
                         {% empty %}
-                        <li class="list-group-item text-center">📌 Hodimlar topilmadi</li>
+                        <li class="list-group-item text-center">Hodimlar topilmadi</li>
                         {% endfor %}
+                    </ul>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Ish Vaqtlari Ro‘yxati -->
-    <table class="table table-bordered table-hover">
-        <thead class="table-dark">
-            <tr>
-                <th>#</th>
-                <th>Hodim</th>
-                <th>Kelgan vaqti</th>
-                <th>Ketgan vaqti</th>
-                <th>Ishlangan soat</th>
-                <th>Kechikish (soat)</th>
-                <th>Erta ketish (soat)</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for log in worklogs %}
-            <tr>
-                <td>{{ forloop.counter }}</td>
-                <td>{{ log.hodim.first_name }} {{ log.hodim.last_name }}</td>
-                <td>{{ log.check_in }}</td>
-                <td>{{ log.check_out|default:"⏳ Hali chiqmagan" }}</td>
-                <td>{{ log.hours_worked }}</td>
-                <td>{{ log.late_check_in_hours }}</td>
-                <td>{{ log.early_leave_hours }}</td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="7" class="text-center text-muted">📭 Ma’lumotlar topilmadi</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <!-- Ish Vaqtlari Ro'yxati - Scrollable container -->
+    <div class="table-container">
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark sticky-top">
+                <tr>
+                    <th>#</th>
+                    <th>Hodim</th>
+                    <th>Kelgan vaqti</th>
+                    <th>Ketgan vaqti</th>
+                    <th>Ishlangan soat</th>
+                    <th>Kechikish (soat)</th>
+                    <th>Erta ketish (soat)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in worklogs %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ log.hodim.first_name }} {{ log.hodim.last_name }}</td>
+                    <td>{{ log.check_in|date:"d/m/Y - G:i" }}</td>
+                    <td>{% if log.check_out %}{{ log.check_out|date:"d/m/Y - G:i" }}{% else %}Hali chiqmagan{% endif %}</td>
+                    <td>{{ log.hours_worked }}</td>
+                    <td>{{ log.late_check_in_hours }}</td>
+                    <td>{{ log.early_leave_hours }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted">Ma'lumotlar topilmadi</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
+
+<style>
+.sticky-header {
+    flex-shrink: 0;
+}
+
+.table-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+}
+
+.table-container .table {
+    margin-bottom: 0;
+}
+
+.table-container thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #212529;
+}
+
+/* Hide main page scrollbar */
+body {
+    overflow: hidden;
+}
+
+/* Ensure the admin base content area doesn't scroll */
+.main-content {
+    overflow: hidden !important;
+}
+
+/* Date picker opens to the left */
+.date-picker-left::-webkit-calendar-picker-indicator {
+    position: absolute;
+    left: 0;
+    padding-left: 10px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.date-picker-left::-webkit-calendar-picker-indicator:hover {
+    background-color: #0d6efd;
+    filter: invert(1);
+    transform: scale(1.2);
+}
+
+.date-picker-left {
+    position: relative;
+    padding-left: 35px;
+    cursor: pointer;
+}
+</style>
 {% endblock %}

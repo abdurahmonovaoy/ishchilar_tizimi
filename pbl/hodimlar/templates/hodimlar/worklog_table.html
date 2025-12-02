@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container mt-4">
-    <h2>📋 {{ hodim.first_name }} {{ hodim.last_name }} - Oylik Ish Jadvali</h2>
+    <h2>{{ hodim.first_name }} {{ hodim.last_name }} - Oylik Ish Jadvali</h2>
     
     <table class="table table-bordered">
         <thead class="table-dark">
@@ -24,7 +24,7 @@
         </tbody>
     </table>
 
-    <a href="{% url 'hodimlar:export_to_excel' hodim.id %}" class="btn btn-success">📊 Excel</a>
-    <a href="{% url 'hodimlar:export_pdf' hodim.id %}" class="btn btn-danger">📝 PDF</a>
+    <a href="{% url 'hodimlar:export_to_excel' hodim.id %}" class="btn btn-success">Excel</a>
+    <a href="{% url 'hodimlar:export_pdf' hodim.id %}" class="btn btn-danger">PDF</a>
 </div>
 {% endblock %}

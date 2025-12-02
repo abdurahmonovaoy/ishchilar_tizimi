@@ -72,18 +72,20 @@
     <!-- 🔍 Qidiruv Formasi -->
     <form method="GET">
         <input type="text" name="q" placeholder="Ism yoki familiya bo‘yicha qidiring..." value="{{ query }}">
-        <button type="submit">🔍 Qidirish</button>
+        <button type="submit">Qidirish</button>
     </form>
 
     {% if hodimlar_data %}
     <table>
         <tr>
+            <th>#</th>
             <th>Hodim</th>
             <th>Kelgan vaqti</th>
             <th>Ketgan vaqti</th>
         </tr>
         {% for hodim in hodimlar_data %}
         <tr>
+            <td>{{ forloop.counter }}</td>
             <td>{{ hodim.first_name }} {{ hodim.last_name }}</td>
             <td class="{% if hodim.check_in and hodim.check_out %}green-text{% elif hodim.check_in and not hodim.check_out %}yellow-text{% else %}red-text{% endif %}">
                 {% if hodim.check_in %}{{ hodim.check_in }}{% else %}Kelmagan{% endif %}
@@ -95,7 +97,7 @@
         {% endfor %}
     </table>
     {% else %}
-    <p class="no-data">🚫 Hodim topilmadi.</p>
+    <p class="no-data"> Hodim topilmadi.</p>
     {% endif %}
 </div>
 {% endblock %}

@@ -1,4 +1,5 @@
 import json
+import logging
 import pandas as pd
 import datetime
 import openpyxl
@@ -9,7 +10,7 @@ from django.db.models import DurationField, ExpressionWrapper, Sum, F, Avg, Q
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.apps import apps
-from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.csrf import csrf_protect, csrf_exempt
 from datetime import datetime, timedelta, time
 from django.utils.timezone import localdate, now
 from django.http import JsonResponse, HttpResponse
@@ -17,25 +18,45 @@ from datetime import date, timedelta, datetime
 from django.utils.timezone import make_aware, get_current_timezone
 from datetime import datetime, time
 from .models import Hodim, WorkLog, AdminUser, LAVOZIMLAR
-from .forms import HodimForm, WorkLogForm
+from .forms import HodimForm, HodimFormClean, WorkLogForm
 from django.utils.timezone import localtime
+from django.views.decorators.http import require_http_methods
+from django.utils import timezone
+from collections import defaultdict
+from django.core.cache import cache
 
+# Audit logger for tracking important actions
+audit_logger = logging.getLogger('audit')
+
+
+# Store recent RFID scans in memory (for development)
+# In production, you might want to use Redis or database
+recent_rfid_scans = []
 
 
 def bugungi_keldi_kelmadi(request):
     today = localdate()  # Bugungi sana
-    
+
     # Bugun ishga kelgan hodimlarni olish
     ishga_kelgan_hodimlar = WorkLog.objects.filter(check_in__date=today).values_list('hodim_id', flat=True)
-    
-    # Hodimlar ro'yxati
-    barcha_hodimlar = Hodim.objects.all()
+
+    # Hodimlar ro'yxati (newest first)
+    barcha_hodimlar = Hodim.objects.all().order_by('-id')
     ishga_kelganlar = barcha_hodimlar.filter(id__in=ishga_kelgan_hodimlar)
     kelmaganlar = barcha_hodimlar.exclude(id__in=ishga_kelgan_hodimlar)
 
+    # Statistics
+    total_employees = Hodim.objects.count()
+    present_today = ishga_kelganlar.count()
+    absent_today = kelmaganlar.count()
+
     context = {
+        'barcha_hodimlar': barcha_hodimlar,
         'ishga_kelganlar': ishga_kelganlar,
-        'kelmaganlar': kelmaganlar
+        'kelmaganlar': kelmaganlar,
+        'total_employees': total_employees,
+        'present_today': present_today,
+        'absent_today': absent_today,
     }
     return render(request, 'hodimlar/bugungi_holati.html', context)
 
@@ -46,9 +67,9 @@ def barcha_hodimlar(request):
 
     # Hodimlarni olish
     if query:
-        hodimlar = Hodim.objects.filter(first_name__icontains=query) | Hodim.objects.filter(last_name__icontains=query)
+        hodimlar = (Hodim.objects.filter(first_name__icontains=query) | Hodim.objects.filter(last_name__icontains=query)).order_by('-id')
     else:
-        hodimlar = Hodim.objects.all()
+        hodimlar = Hodim.objects.all().order_by('-id')
 
     # Hodimlarning ish loglarini olish
     hodimlar_data = []
@@ -57,8 +78,8 @@ def barcha_hodimlar(request):
         hodimlar_data.append({
             'first_name': hodim.first_name,
             'last_name': hodim.last_name,
-            'check_in': worklog.check_in.strftime('%H:%M') if worklog and worklog.check_in else None,
-            'check_out': worklog.check_out.strftime('%H:%M') if worklog and worklog.check_out else None,
+            'check_in': worklog.check_in.strftime('%d/%m/%Y - %H:%M') if worklog and worklog.check_in else None,
+            'check_out': worklog.check_out.strftime('%d/%m/%Y - %H:%M') if worklog and worklog.check_out else None,
         })
 
     return render(request, 'hodimlar/barcha_hodimlar.html', {
@@ -79,8 +100,8 @@ def bugungi_hodimlar(request):
         hodimlar_data.append({
             "first_name": log.hodim.first_name,
             "last_name": log.hodim.last_name,
-            "check_in": log.check_in.strftime('%H:%M') if log.check_in else None,
-            "check_out": log.check_out.strftime('%H:%M') if log.check_out else None,
+            "check_in": log.check_in.strftime('%d/%m/%Y - %H:%M') if log.check_in else None,
+            "check_out": log.check_out.strftime('%d/%m/%Y - %H:%M') if log.check_out else None,
         })
 
     # Agar qidiruv bo'lsa
@@ -108,8 +129,8 @@ def hodim_detail(request, hodim_id):
         log = worklogs.filter(check_in__date=date).first()
         data.append({
             "day": day,
-            "check_in": log.check_in.strftime("%H:%M") if log else "-",
-            "check_out": log.check_out.strftime("%H:%M") if log and log.check_out else "-",
+            "check_in": log.check_in.strftime("%d/%m/%Y - %H:%M") if log else "-",
+            "check_out": log.check_out.strftime("%d/%m/%Y - %H:%M") if log and log.check_out else "-",
             "hours_worked": log.hours_worked if log else 0
         })
 
@@ -120,8 +141,8 @@ def hodim_detail(request, hodim_id):
             'Telefon': hodim.phone,
             'Lavozim': hodim.position,
             'Yoshi': hodim.age,
-            'Kelgan vaqti': log.check_in.strftime("%d.%m.%Y %H:%M") if log and log.check_in else "Ishga kelmagan",
-            'Ketgan vaqti': log.check_out.strftime("%d.%m.%Y %H:%M") if log and log.check_out else '-',
+            'Kelgan vaqti': log.check_in.strftime("%d/%m/%Y - %H:%M") if log and log.check_in else "Ishga kelmagan",
+            'Ketgan vaqti': log.check_out.strftime("%d/%m/%Y - %H:%M") if log and log.check_out else '-',
             'Ishlangan soat': log.hours_worked if log else '-'
         })
 
@@ -193,19 +214,31 @@ def export_to_pdf(request):
     return response
 
 def worklog_list(request):
-    """ Ish vaqtlari sahifasi (AJAX va filter qo‘llangan) """
-    qidirish = request.GET.get("qidirish", "").strip()
+    """ Ish vaqtlari sahifasi (AJAX va filter qo'llangan) """
+    query = request.GET.get("q", "").strip()
     date_filter = request.GET.get("date", "").strip()
-    
-    worklogs = WorkLog.objects.select_related("hodim").all()
-    hodimlar = Hodim.objects.all()
-    
-    # Qidirish bo‘yicha filtr
-    if qidirish:
-        worklogs = worklogs.filter(
-            Q(hodim__first_name__icontains=qidirish) |
-            Q(hodim__last_name__icontains=qidirish)
-        )
+
+    worklogs = WorkLog.objects.select_related("hodim").all().order_by('-check_in')
+    # Order employees by most recently added first
+    hodimlar = Hodim.objects.all().order_by('-id')
+
+    # Qidirish bo'yicha filtr (supports partial and full name search)
+    if query:
+        query_parts = query.split()
+        if len(query_parts) >= 2:
+            # Full name search: "Ism Familiya"
+            worklogs = worklogs.filter(
+                Q(hodim__first_name__icontains=query_parts[0], hodim__last_name__icontains=query_parts[1]) |
+                Q(hodim__first_name__icontains=query_parts[1], hodim__last_name__icontains=query_parts[0]) |
+                Q(hodim__first_name__icontains=query) |
+                Q(hodim__last_name__icontains=query)
+            )
+        else:
+            # Single word search
+            worklogs = worklogs.filter(
+                Q(hodim__first_name__icontains=query) |
+                Q(hodim__last_name__icontains=query)
+            )
     
     # Sanaga qarab filtr
     if date_filter:
@@ -215,14 +248,13 @@ def worklog_list(request):
         except ValueError:
             pass  # Noto‘g‘ri sana formati kiritilgan bo‘lsa, hech narsa qilmaymiz
     
-    # Statistikalar uchun konsolga chiqarish
-    for log in worklogs:
-        print(f"Hodim: {log.hodim.first_name} {log.hodim.last_name}, Kechikish: {log.late_check_in_hours}, Erta ketish: {log.early_leave_hours}")    
-
     return render(request, "hodimlar/worklog_list.html", {
         "worklogs": worklogs,
-        "hodimlar": hodimlar
-})
+        "hodimlar": hodimlar,
+        "query": query,
+        "date": date_filter,
+        "today": localdate().strftime("%Y-%m-%d"),
+    })
 
 
 def monthly_work_hours(request):
@@ -230,7 +262,7 @@ def monthly_work_hours(request):
     today = datetime.today()
     year, month = today.year, today.month
 
-    hodimlar = Hodim.objects.all()
+    hodimlar = Hodim.objects.all().order_by('-id')
     work_hours_data = []
 
     for hodim in hodimlar:
@@ -253,15 +285,48 @@ def admin_login(request):
         return redirect('hodimlar:admin_dashboard')
 
     if request.method == "POST":
-        username = request.POST["username"]
-        password = request.POST["password"]
+        username = request.POST.get("username", "")
+        password = request.POST.get("password", "")
+
+        # Rate limiting: Check for too many failed attempts
+        client_ip = get_client_ip(request)
+        cache_key = f"login_attempts_{client_ip}"
+        attempts = cache.get(cache_key, 0)
+
+        if attempts >= 5:
+            # Audit log: Rate limit hit
+            audit_logger.warning(f"LOGIN_RATE_LIMITED: IP {client_ip} blocked after {attempts} failed attempts")
+            messages.error(request, "Juda ko'p noto'g'ri urinish! 15 daqiqa kutib turing.")
+            return render(request, "admin/admin_login.html")
+
         user = authenticate(request, username=username, password=password)
         if user and user.is_staff:
+            # Reset failed attempts on successful login
+            cache.delete(cache_key)
             login(request, user)
+
+            # Audit log: Successful login
+            audit_logger.info(f"LOGIN_SUCCESS: User {username} logged in from IP {client_ip}")
             return redirect("hodimlar:admin_dashboard")
         else:
-            messages.error(request, "Foydalanuvchi yoki parol noto‘g‘ri!")
+            # Increment failed attempts (expires in 15 minutes)
+            cache.set(cache_key, attempts + 1, 900)
+
+            # Audit log: Failed login
+            audit_logger.warning(f"LOGIN_FAILED: Username '{username}' from IP {client_ip} (Attempt {attempts + 1})")
+            messages.error(request, "Foydalanuvchi yoki parol noto'g'ri!")
+
     return render(request, "admin/admin_login.html")
+
+
+def get_client_ip(request):
+    """Get client IP address from request"""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
 
 @login_required
 def admin_dashboard(request):
@@ -284,12 +349,16 @@ def admin_dashboard(request):
     employee_names = json.dumps([f"{log['hodim__first_name']} {log['hodim__last_name']}" for log in worklogs])
     work_hours = json.dumps([log['worked_hours'].total_seconds() / 3600 if log['worked_hours'] else 0 for log in worklogs])
 
+    # ✅ Spreadsheet uchun bugungi barcha workloglar
+    today_worklogs = WorkLog.objects.filter(check_in__date=today).select_related('hodim').order_by('-check_in')
+
     context = {
         'total_employees': total_employees,
         'present_today': present_today,
         'absent_today': absent_today,
         'employee_names': employee_names,
         'work_hours': work_hours,
+        'today_worklogs': today_worklogs,  # ✅ Spreadsheet uchun ma'lumot
     }
     return render(request, 'admin/admin_dashboard.html', context)
     
@@ -298,9 +367,227 @@ def admin_logout(request):
     logout(request)
     return redirect("hodimlar:admin_login")
 
+# ✅ Google Sheets API Views
+from .google_sheets_service import GoogleSheetsService
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
+import json
+import os
+
+@csrf_exempt
+def google_sheets_sync(request):
+    """Sync all worklog data to Google Sheets"""
+    if request.method == 'POST':
+        try:
+            # Get all worklogs (not just today)
+            all_worklogs = WorkLog.objects.all().select_related('hodim').order_by('check_in')
+            
+            # Get spreadsheet ID from request if provided
+            data = json.loads(request.body) if request.body else {}
+            spreadsheet_id = data.get('spreadsheet_id')
+            
+            # Initialize Google Sheets service
+            sheets_service = GoogleSheetsService()
+            
+            # Sync data
+            result = sheets_service.sync_worklog_data(all_worklogs, spreadsheet_id)
+            
+            if result:
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f"{result['rows_updated']} qator yangilandi",
+                    'spreadsheet_id': result['spreadsheet_id'],
+                    'spreadsheet_url': result['url']
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Google Sheets bilan syncing amalga oshmadi'
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Xatolik yuz berdi: {str(e)}'
+            })
+    
+    return JsonResponse({'status': 'error', 'message': 'POST method kerak'})
+
+@csrf_exempt
+def google_sheets_create(request):
+    """Create new Google Spreadsheet"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body) if request.body else {}
+            title = data.get('title', 'Hodimlar Ish Vaqti')
+            
+            sheets_service = GoogleSheetsService()
+            result = sheets_service.create_spreadsheet(title)
+            
+            if result:
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Yangi Google Sheets yaratildi',
+                    'spreadsheet_id': result['spreadsheet_id'],
+                    'spreadsheet_url': result['url']
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Google Sheets yaratishda xatolik'
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Xatolik: {str(e)}'
+            })
+    
+    return JsonResponse({'status': 'error', 'message': 'POST method kerak'})
+
+def google_sheets_read(request, spreadsheet_id):
+    """Read data from Google Spreadsheet"""
+    try:
+        sheets_service = GoogleSheetsService()
+        data = sheets_service.read_data_from_sheet(spreadsheet_id)
+        
+        if data is not None:
+            return JsonResponse({
+                'status': 'success',
+                'data': data,
+                'rows_count': len(data)
+            })
+        else:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Google Sheets-dan ma\'lumot o\'qishda xatolik'
+            })
+            
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Xatolik: {str(e)}'
+        })
+
+@login_required 
+def google_sheets_append(request):
+    """Append new data to Google Spreadsheet"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            spreadsheet_id = data.get('spreadsheet_id')
+            new_data = data.get('data', [])
+            
+            if not spreadsheet_id or not new_data:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'spreadsheet_id va data kerak'
+                })
+            
+            sheets_service = GoogleSheetsService()
+            success = sheets_service.append_data_to_sheet(spreadsheet_id, new_data)
+            
+            if success:
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'{len(new_data)} qator qo\'shildi'
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Ma\'lumot qo\'shishda xatolik'
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Xatolik: {str(e)}'
+            })
+    
+    return JsonResponse({'status': 'error', 'message': 'POST method kerak'})
+
+def google_sheets_settings(request):
+    """Google Sheets credentials settings page"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            credentials_json = data.get('credentials_json', '').strip()
+            
+            if not credentials_json:
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Credentials JSON matnini kiriting'
+                })
+            
+            # Test the credentials
+            sheets_service = GoogleSheetsService(credentials_json)
+            
+            if sheets_service.service:
+                # Save credentials to database (secure)
+                from .models import GoogleSheetsSettings
+                
+                # Deactivate old settings
+                GoogleSheetsSettings.objects.filter(is_active=True).update(is_active=False)
+                
+                # Create new active settings
+                GoogleSheetsSettings.objects.create(
+                    credentials_json=credentials_json,
+                    is_active=True
+                )
+                
+                # Also backup to file for backward compatibility
+                credentials_path = os.path.join(settings.BASE_DIR, 'google_credentials.json')
+                with open(credentials_path, 'w') as f:
+                    f.write(credentials_json)
+                
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Google Sheets credentials muvaffaqiyatli sozlandi va xavfsiz saqlandi!'
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Credentials noto\'g\'ri yoki API ulanish xatosi'
+                })
+                
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'JSON format noto\'g\'ri'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error', 
+                'message': f'Xatolik: {str(e)}'
+            })
+    
+    # GET request - show current status
+    try:
+        from .models import GoogleSheetsSettings
+        db_settings = GoogleSheetsSettings.get_active_settings()
+        has_credentials = db_settings and db_settings.credentials_json
+        
+        # Fallback to file if database is empty
+        if not has_credentials:
+            credentials_path = os.path.join(settings.BASE_DIR, 'google_credentials.json')
+            has_credentials = os.path.exists(credentials_path)
+        
+        context = {
+            'has_credentials': has_credentials,
+            'credentials_file_exists': has_credentials
+        }
+        return render(request, 'admin/google_sheets_settings.html', context)
+        
+    except Exception as e:
+        context = {
+            'has_credentials': False,
+            'error': str(e)
+        }
+        return render(request, 'admin/google_sheets_settings.html', context)
 
 def home_view(request):
-    hodimlar = Hodim.objects.all()
+    hodimlar = Hodim.objects.all().order_by('-id')
     work_logs = WorkLog.objects.all()
     admin_users = AdminUser.objects.all()
 
@@ -331,9 +618,51 @@ def add_hodim(request):
         form = HodimForm(request.POST)
         if form.is_valid():
             try:
-                form.save()
-                messages.success(request, "✅ Yangi hodim muvaffaqiyatli qo‘shildi!")
-                return redirect('hodimlar:hodim_list')
+                # Save the employee and get the instance
+                new_hodim = form.save()
+
+                # Audit log: Employee created
+                user = request.user.username if request.user.is_authenticated else 'Anonymous'
+                audit_logger.info(f"HODIM_CREATED: {new_hodim.first_name} {new_hodim.last_name} (ID: {new_hodim.id}) by {user}")
+
+                # Create detailed success message with full employee info
+                success_message = f"""
+                ✅ <strong>Yangi hodim muvaffaqiyatli qo'shildi!</strong><br><br>
+                <div class="card mt-2 mb-2">
+                    <div class="card-body py-3">
+                        <h6 class="card-title text-success mb-3">
+                            <i class="bi bi-person-check"></i> Qo'shilgan hodim ma'lumotlari:
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p class="mb-2"><strong>👤 Ismi:</strong> {new_hodim.first_name}</p>
+                                <p class="mb-2"><strong>👥 Familiyasi:</strong> {new_hodim.last_name}</p>
+                                <p class="mb-2"><strong>📞 Telefon:</strong> {new_hodim.phone_number}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-2"><strong>💼 Lavozimi:</strong> {new_hodim.get_lavozim_display()}</p>
+                                <p class="mb-2"><strong>🎂 Tug'ilgan sana:</strong> {new_hodim.birth_date.strftime('%d.%m.%Y')}</p>
+                                <p class="mb-2"><strong>🏷️ RFID Karta:</strong> {new_hodim.card_uid if new_hodim.card_uid else 'Biriktirilmagan'}</p>
+                            </div>
+                        </div>
+                        <div class="text-center mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-clock"></i> Qo'shilgan vaqt: {timezone.now().strftime('%d.%m.%Y %H:%M')}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                """
+                
+                messages.success(request, success_message)
+                
+                # ✅ Clear RFID scan history after successful save
+                global recent_rfid_scans
+                recent_rfid_scans = []
+                print("✅ Scan history cleared after successful employee creation")
+                
+                # Create a fresh form to clear all fields and errors (no initial values)
+                form = HodimFormClean()
             except Exception as e:
                 messages.error(request, f"❌ Xatolik: {str(e)}")
                 print("Xatolik:", e)  # ✅ Xatolikni konsolga chiqaramiz
@@ -352,7 +681,8 @@ def add_hodim(request):
 
 def hodim_list(request):
     query = request.GET.get('q', '').strip()
-    hodimlar = Hodim.objects.all()
+    # Order by most recently added first (newest first)
+    hodimlar = Hodim.objects.all().order_by('-id')
 
     if query:
         # `Q` obyekti yordamida bir nechta shartlarni birlashtirish
@@ -471,7 +801,7 @@ def monthly_report(request):
     on_time_days = []
     benefits = []
 
-    for hodim in Hodim.objects.all():
+    for hodim in Hodim.objects.all().order_by('-id'):
         full_name = f"{hodim.first_name} {hodim.last_name}"
         work_logs = monthly_work_logs.filter(hodim=hodim)
 
@@ -524,24 +854,52 @@ def monthly_report(request):
 def edit_hodim(request, id):
     hodim = get_object_or_404(Hodim, id=id)
     if request.method == "POST":
+        print("POST data:", request.POST)
         form = HodimForm(request.POST, instance=hodim)
         if form.is_valid():
-            form.save()  # Yangilashni saqlash
-            messages.success(request, "Hodim ma'lumotlari yangilandi!")
-            return redirect('hodimlar:hodim_list')  # Yangilangan ro‘yxatni ko‘rsatish
+            # Save the updated employee and get the instance
+            updated_hodim = form.save()
+
+            # Audit log: Employee updated
+            user = request.user.username if request.user.is_authenticated else 'Anonymous'
+            audit_logger.info(f"HODIM_UPDATED: {updated_hodim.first_name} {updated_hodim.last_name} (ID: {updated_hodim.id}) by {user}")
+
+            # Create detailed success message with updated employee info
+            success_message = f"""
+            ✅ <strong>Hodim ma'lumotlari muvaffaqiyatli yangilandi!</strong><br><br>
+            <div class="card mt-2 mb-2">
+                <div class="card-body py-3">
+                    <h6 class="card-title text-success mb-3">
+                        <i class="bi bi-person-check"></i> Yangilangan hodim ma'lumotlari:
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="mb-2"><strong>👤 Ismi:</strong> {updated_hodim.first_name}</p>
+                            <p class="mb-2"><strong>👥 Familiyasi:</strong> {updated_hodim.last_name}</p>
+                            <p class="mb-2"><strong>📞 Telefon:</strong> {updated_hodim.phone_number}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-2"><strong>💼 Lavozimi:</strong> {updated_hodim.get_lavozim_display()}</p>
+                            <p class="mb-2"><strong>🎂 Tug'ilgan sana:</strong> {updated_hodim.birth_date.strftime('%d.%m.%Y')}</p>
+                            <p class="mb-2"><strong>🏷️ RFID Karta:</strong> {updated_hodim.card_uid if updated_hodim.card_uid else 'Biriktirilmagan'}</p>
+                        </div>
+                    </div>
+                    <div class="text-center mt-3">
+                        <small class="text-muted">
+                            <i class="bi bi-clock"></i> Yangilangan vaqt: {timezone.now().strftime('%d.%m.%Y %H:%M')}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            """
+            
+            messages.success(request, success_message)
+            return redirect('hodimlar:hodim_list')  # Yangilangan ro'yxatni ko'rsatish
         else:
             print(form.errors)  # Xatoliklar haqida ma'lumot olish
             messages.error(request, "Formani to'g'ri to'ldirish kerak!")
     else:
         form = HodimForm(instance=hodim)
-
-    LAVOZIMLAR = [
-        ('Tikuvch', 'Tikuvchi'),
-        ('Orta kesuv', 'Orta kesuv'),
-        ('Kesuv', 'Kesuv'),
-        ('Mehanik', 'Mehanik'),
-        ('Ish bay', 'Ish bay'),
-    ]
 
     return render(request, 'hodimlar/edit_hodim.html', {
         'form': form,
@@ -551,7 +909,225 @@ def edit_hodim(request, id):
 
 
 def delete_hodim(request, id):
-    hodim = get_object_or_404(Hodim, id=id)
-    hodim.delete()
-    messages.success(request, "Hodim o‘chirildi!")
-    return redirect('hodimlar:hodim_list')  # ✅ TO‘G‘RI YO‘NALTIRISH
+    try:
+        hodim = Hodim.objects.get(id=id)
+        hodim_name = f"{hodim.first_name} {hodim.last_name}"
+        hodim_id = hodim.id
+        hodim.delete()
+
+        # Audit log: Employee deleted
+        user = request.user.username if request.user.is_authenticated else 'Anonymous'
+        audit_logger.info(f"HODIM_DELETED: {hodim_name} (ID: {hodim_id}) by {user}")
+
+        messages.success(request, f"{hodim_name} o'chirildi!")
+    except Hodim.DoesNotExist:
+        messages.error(request, f"ID {id} bilan hodim topilmadi yoki allaqachon o'chirilgan!")
+    
+    return redirect('hodimlar:hodim_list')
+
+
+# RFID API Endpoint
+@csrf_exempt 
+@require_http_methods(["GET"])
+def get_recent_rfid_scans(request):
+    """
+    API endpoint to get recent RFID card scans for form auto-population
+    Returns the most recent RFID card UIDs that have been scanned
+    """
+    try:
+        global recent_rfid_scans
+        # Check registration status for each scan
+        scans_with_status = []
+        for scan in recent_rfid_scans[:5]:
+            scan_copy = scan.copy()
+            # Check if card is registered
+            is_registered = Hodim.objects.filter(card_uid=scan['card_uid']).exists()
+            scan_copy['is_registered'] = is_registered
+            if is_registered:
+                hodim = Hodim.objects.get(card_uid=scan['card_uid'])
+                scan_copy['employee_name'] = f"{hodim.first_name} {hodim.last_name}"
+            else:
+                scan_copy['employee_name'] = "Ro'yxatdan o'tmagan"
+            scans_with_status.append(scan_copy)
+            
+        return JsonResponse({
+            "status": "success",
+            "recent_scans": scans_with_status,
+            "count": len(recent_rfid_scans)
+        })
+    except Exception as e:
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to get recent scans: {str(e)}"
+        }, status=500)
+
+@csrf_exempt 
+@require_http_methods(["POST"])
+def clear_rfid_scans(request):
+    """
+    API endpoint to clear recent RFID scan history
+    """
+    try:
+        global recent_rfid_scans
+        recent_rfid_scans = []
+        return JsonResponse({
+            "status": "success",
+            "message": "Scan history cleared"
+        })
+    except Exception as e:
+        return JsonResponse({
+            "status": "error",
+            "message": f"Failed to clear scans: {str(e)}"
+        }, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST", "GET"])
+def rfid_api(request):
+    # Simple rate limiting - allow max 10 requests per minute per IP
+    import time
+    from collections import defaultdict
+    
+    if not hasattr(rfid_api, 'rate_limit'):
+        rfid_api.rate_limit = defaultdict(list)
+    
+    client_ip = request.META.get('HTTP_X_FORWARDED_FOR', 
+                request.META.get('REMOTE_ADDR', 'unknown'))
+    current_time = time.time()
+    
+    # Clean old requests (older than 1 minute)
+    rfid_api.rate_limit[client_ip] = [
+        req_time for req_time in rfid_api.rate_limit[client_ip] 
+        if current_time - req_time < 60
+    ]
+    
+    # Check rate limit
+    if len(rfid_api.rate_limit[client_ip]) >= 10:
+        return JsonResponse({
+            "status": "error", 
+            "message": "Rate limit exceeded. Max 10 requests per minute."
+        }, status=429)
+    
+    # Add current request time
+    rfid_api.rate_limit[client_ip].append(current_time)
+    
+    """
+    API endpoint to receive RFID data from Arduino ESP8266
+    Handles both check-in and check-out based on existing logs
+    """
+    if request.method == "GET":
+        return JsonResponse({"status": "ok", "message": "RFID API is running"})
+    
+    try:
+        # Parse JSON data from request
+        data = json.loads(request.body)
+        
+        # Extract data from Arduino payload
+        card_uid = data.get('card_uid', '')
+        values = data.get('values', '')
+        gate_number = data.get('gate_number', 'Unknown')
+        
+        # Track recent RFID scan for form auto-population
+        if card_uid:
+            global recent_rfid_scans
+            scan_data = {
+                'card_uid': card_uid,
+                'timestamp': timezone.now().isoformat(),
+                'gate': gate_number
+            }
+            recent_rfid_scans.insert(0, scan_data)  # Add to beginning
+            # Keep only last 10 scans
+            recent_rfid_scans = recent_rfid_scans[:10]
+        
+        # Parse values (card_uid,student_id,first_name,last_name,phone,address,gate_number)
+        values_list = values.split(',') if values else []
+        
+        if not card_uid:
+            return JsonResponse({"status": "error", "message": "Card UID is required"})
+        
+        # Try to find existing employee by card UID
+        hodim = None
+        try:
+            # PRIORITY 1: Find employee by assigned card UID in database
+            hodim = Hodim.objects.get(card_uid=card_uid)
+            print(f"✅ Found assigned employee: {hodim.first_name} {hodim.last_name} for card {card_uid}")
+            
+        except Hodim.DoesNotExist:
+            # Don't auto-create employees anymore - just log unregistered card
+            print(f"⚠️ Unregistered card scanned: {card_uid}")
+            return JsonResponse({
+                "status": "error", 
+                "message": f"Ro'yxatdan o'tmagan karta: {card_uid}",
+                "card_uid": card_uid,
+                "action": "unregistered"
+            })
+        
+        # Check today's work log
+        today = localdate()
+        current_time = now()
+        
+        # Find today's worklog for this employee
+        today_log = WorkLog.objects.filter(
+            hodim=hodim,
+            check_in__date=today
+        ).order_by('-check_in').first()
+        
+        if not today_log:
+            # First scan of the day - CHECK IN
+            worklog = WorkLog.objects.create(
+                hodim=hodim,
+                check_in=current_time
+            )
+            
+            message = f"✅ Kelgan vaqti: {hodim.first_name} {hodim.last_name} - {localtime(current_time).strftime('%H:%M:%S')} ({gate_number})"
+            
+            return JsonResponse({
+                "status": "success",
+                "action": "check_in",
+                "message": message,
+                "employee": f"{hodim.first_name} {hodim.last_name}",
+                "time": localtime(current_time).strftime('%H:%M:%S'),
+                "gate": gate_number
+            })
+        
+        elif not today_log.check_out:
+            # Employee already checked in, now CHECK OUT
+            today_log.check_out = current_time
+            today_log.save()
+            
+            message = f"👋 Ketgan vaqti: {hodim.first_name} {hodim.last_name} - {localtime(current_time).strftime('%H:%M:%S')} ({gate_number})"
+            
+            # Calculate hours worked
+            hours_worked = today_log.hours_worked
+            
+            return JsonResponse({
+                "status": "success",
+                "action": "check_out",
+                "message": message,
+                "employee": f"{hodim.first_name} {hodim.last_name}",
+                "time": localtime(current_time).strftime('%H:%M:%S'),
+                "gate": gate_number,
+                "hours_worked": hours_worked
+            })
+        
+        else:
+            # Employee already checked in and out today - create new check-in
+            worklog = WorkLog.objects.create(
+                hodim=hodim,
+                check_in=current_time
+            )
+            
+            message = f"🔄 Qayta kelgan: {hodim.first_name} {hodim.last_name} - {localtime(current_time).strftime('%H:%M:%S')} ({gate_number})"
+            
+            return JsonResponse({
+                "status": "success",
+                "action": "re_check_in",
+                "message": message,
+                "employee": f"{hodim.first_name} {hodim.last_name}",
+                "time": localtime(current_time).strftime('%H:%M:%S'),
+                "gate": gate_number
+            })
+    
+    except json.JSONDecodeError:
+        return JsonResponse({"status": "error", "message": "Invalid JSON data"})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)})

@@ -7,13 +7,53 @@ class HodimForm(forms.ModelForm):
     lavozim = forms.ChoiceField(choices=LAVOZIMLAR, required=True, initial='Tikuvchi')  # Default value
 
     birth_date = forms.DateField(
-    widget=forms.DateInput(attrs={'placeholder': 'DD.MM.YYYY', 'class': 'form-control'}, format='%d.%m.%Y'),
-    input_formats=['%d.%m.%Y', '%Y-%m-%d']
-)
+        widget=forms.DateInput(attrs={'placeholder': 'DD.MM.YYYY', 'class': 'form-control'}, format='%d.%m.%Y'),
+        input_formats=['%d.%m.%Y', '%Y-%m-%d']
+    )
 
     class Meta:
         model = Hodim
-        fields = ['first_name', 'last_name', 'birth_date', 'phone_number', 'lavozim']
+        fields = ['first_name', 'last_name', 'birth_date', 'phone_number', 'lavozim', 'bolim', 'oylik', 'card_uid']
+        widgets = {
+            'card_uid': forms.TextInput(attrs={
+                'placeholder': 'RFID karta UID (ixtiyoriy)',
+                'class': 'form-control'
+            }),
+            'bolim': forms.TextInput(attrs={
+                'placeholder': "Bo'lim nomi",
+                'class': 'form-control'
+            }),
+            'oylik': forms.NumberInput(attrs={
+                'placeholder': 'Oylik maosh (so\'m)',
+                'class': 'form-control'
+            })
+        }
+
+class HodimFormClean(forms.ModelForm):
+    lavozim = forms.ChoiceField(choices=LAVOZIMLAR, required=True)  # No default value
+
+    birth_date = forms.DateField(
+        widget=forms.DateInput(attrs={'placeholder': 'DD.MM.YYYY', 'class': 'form-control'}, format='%d.%m.%Y'),
+        input_formats=['%d.%m.%Y', '%Y-%m-%d']
+    )
+
+    class Meta:
+        model = Hodim
+        fields = ['first_name', 'last_name', 'birth_date', 'phone_number', 'lavozim', 'bolim', 'oylik', 'card_uid']
+        widgets = {
+            'card_uid': forms.TextInput(attrs={
+                'placeholder': 'RFID karta UID (ixtiyoriy)',
+                'class': 'form-control'
+            }),
+            'bolim': forms.TextInput(attrs={
+                'placeholder': "Bo'lim nomi",
+                'class': 'form-control'
+            }),
+            'oylik': forms.NumberInput(attrs={
+                'placeholder': 'Oylik maosh (so\'m)',
+                'class': 'form-control'
+            })
+        }
 
 class WorkLogForm(forms.ModelForm):
     check_in = forms.DateTimeField(

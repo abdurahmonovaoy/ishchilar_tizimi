@@ -1,0 +1,307 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Google Sheets Settings{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-gear"></i> Google Sheets API Settings</h4>
+                </div>
+                <div class="card-body">
+                    
+                    <!-- Status Display -->
+                    {% if has_credentials %}
+                    <div class="alert alert-success">
+                        <h6><i class="bi bi-check-circle"></i> Credentials Sozlangan</h6>
+                        <p class="mb-0">Google Sheets API credentials muvaffaqiyatli sozlandi. API funksiyalari ishlatishingiz mumkin.</p>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <h6><i class="bi bi-exclamation-triangle"></i> Credentials Kerak</h6>
+                        <p class="mb-0">Google Sheets API dan foydalanish uchun credentials kerak. Pastdagi qadamlarni bajaring.</p>
+                    </div>
+                    {% endif %}
+
+                    <!-- Response Area -->
+                    <div id="responseArea" style="display: none;" class="mb-3">
+                        <div class="alert" id="responseAlert">
+                            <span id="responseMessage"></span>
+                        </div>
+                    </div>
+
+                    <!-- Easy Setup Instructions -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>1️⃣ Google Cloud Console</h5>
+                            <p class="small">
+                                <a href="https://console.cloud.google.com/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">
+                                    <i class="bi bi-box-arrow-up-right"></i> Console ga O'ting
+                                </a><br>
+                                • Yangi project yarating<br>
+                                • "Google Sheets API" ni enable qiling<br>
+                                • Service Account yarating
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>2️⃣ Credentials</h5>
+                            <p class="small">
+                                • Service Account > Keys > Add Key<br>
+                                • JSON formatni tanlang<br>
+                                • Download qiling<br>
+                                • Pastdagi maydonga paste qiling
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Credentials Input -->
+                    <div class="mb-4">
+                        <label for="credentialsInput" class="form-label fw-bold">
+                            <i class="bi bi-key"></i> Google Service Account Credentials (JSON)
+                        </label>
+                        <textarea id="credentialsInput" class="form-control font-monospace" rows="12" 
+                                  placeholder='Credentials JSON-ni shu yerga paste qiling:
+{
+  "type": "service_account",
+  "project_id": "your-project",
+  "private_key_id": "...",
+  "private_key": "...",
+  "client_email": "your-service@project.iam.gserviceaccount.com",
+  "client_id": "...",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  ...
+}'></textarea>
+                        <small class="form-text text-muted">
+                            <i class="bi bi-info-circle"></i> 
+                            Bu ma'lumotlar xavfsiz tarzda saqlanadi va faqat Google Sheets API ga ulanish uchun ishlatiladi.
+                        </small>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2 mb-4">
+                        <button id="testCredentialsBtn" class="btn btn-success" onclick="testCredentials()">
+                            <i class="bi bi-check-circle"></i> Test va Saqlash
+                        </button>
+                        <button id="clearCredentialsBtn" class="btn btn-outline-secondary" onclick="clearCredentials()">
+                            <i class="bi bi-trash"></i> Tozalash
+                        </button>
+                        <a href="{% url 'hodimlar:admin_dashboard' %}" class="btn btn-primary">
+                            <i class="bi bi-arrow-left"></i> Dashboard ga Qaytish
+                        </a>
+                    </div>
+
+                    <!-- Quick Test Section -->
+                    {% if has_credentials %}
+                    <div class="border rounded p-3 bg-light">
+                        <h6><i class="bi bi-lightning"></i> Tezkor Test</h6>
+                        <p class="small mb-2">API sozlamalarini sinab ko'ring:</p>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="quickTest('create')">
+                                Test Sheet Yaratish
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="quickTest('sync')">
+                                Ma'lumot Sync Qilish
+                            </button>
+                        </div>
+                        <div id="quickTestResult" class="mt-2" style="display: none;">
+                            <small class="text-muted">Test natijasi: </small>
+                            <span id="testResult"></span>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                </div>
+            </div>
+
+            <!-- Help Section -->
+            <div class="card mt-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="bi bi-question-circle"></i> Yordam</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>🔧 Qadamlar:</h6>
+                            <ol class="small">
+                                <li>Google Cloud Console ga kiring</li>
+                                <li>Yangi project yarating</li>
+                                <li>Google Sheets API ni enable qiling</li>
+                                <li>Service Account yarating</li>
+                                <li>JSON key file yuklab oling</li>
+                                <li>Mazmunni yuqoridagi maydonga paste qiling</li>
+                                <li>"Test va Saqlash" tugmasini bosing</li>
+                            </ol>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>❓ Ko'p so'raladigan savollar:</h6>
+                            <div class="small">
+                                <strong>Q:</strong> Service Account nima?<br>
+                                <strong>A:</strong> Google API bilan ishlash uchun maxsus bot akkaunt.<br><br>
+                                
+                                <strong>Q:</strong> Ma'lumotlar xavfsizmi?<br>
+                                <strong>A:</strong> Ha, credentials faqat serverda saqlanadi.<br><br>
+                                
+                                <strong>Q:</strong> Bepul ishlatsa bo'ladimi?<br>
+                                <strong>A:</strong> Ha, Google Sheets API bepul (limitlar bilan).
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showResponse(message, type = 'info') {
+    const responseArea = document.getElementById('responseArea');
+    const responseAlert = document.getElementById('responseAlert');
+    const responseMessage = document.getElementById('responseMessage');
+    
+    responseAlert.className = `alert alert-${type}`;
+    responseMessage.textContent = message;
+    responseArea.style.display = 'block';
+    
+    if (type === 'success') {
+        setTimeout(() => {
+            responseArea.style.display = 'none';
+        }, 5000);
+    }
+}
+
+async function testCredentials() {
+    const credentials = document.getElementById('credentialsInput').value.trim();
+    const btn = document.getElementById('testCredentialsBtn');
+    
+    if (!credentials) {
+        showResponse('Iltimos, credentials JSON matnini kiriting!', 'danger');
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
+    
+    try {
+        const response = await fetch(window.location.href, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                credentials_json: credentials
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            showResponse(result.message, 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showResponse(result.message, 'danger');
+        }
+        
+    } catch (error) {
+        showResponse('Network xatosi: ' + error.message, 'danger');
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-circle"></i> Test va Saqlash';
+}
+
+function clearCredentials() {
+    if (confirm('Credentials tozalansinmi?')) {
+        document.getElementById('credentialsInput').value = '';
+        showResponse('Credentials tozalandi', 'info');
+    }
+}
+
+async function quickTest(action) {
+    const result = document.getElementById('quickTestResult');
+    const span = document.getElementById('testResult');
+    
+    result.style.display = 'block';
+    span.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
+    
+    try {
+        let url = '';
+        let method = 'POST';
+        let body = {};
+        
+        if (action === 'create') {
+            url = '/api/google-sheets/create/';
+            body = { title: 'Test Sheet - ' + new Date().toLocaleString() };
+        } else if (action === 'sync') {
+            url = '/api/google-sheets/sync/';
+            body = {};
+        }
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(body)
+        });
+        
+        const result_data = await response.json();
+        
+        if (result_data.status === 'success') {
+            span.innerHTML = '<span class="text-success">✅ Muvaffaqiyatli!</span>';
+            if (result_data.spreadsheet_url) {
+                span.innerHTML += ` <a href="${result_data.spreadsheet_url}" target="_blank" class="btn btn-sm btn-outline-primary">Sheet ni ko'rish</a>`;
+            }
+        } else {
+            span.innerHTML = '<span class="text-danger">❌ ' + result_data.message + '</span>';
+        }
+        
+    } catch (error) {
+        span.innerHTML = '<span class="text-danger">❌ Network xatosi</span>';
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+
+<style>
+.font-monospace {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+}
+
+.card-header {
+    border-bottom: none;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    transition: all 0.2s ease;
+}
+
+#credentialsInput:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+</style>
+
+{% endblock %}

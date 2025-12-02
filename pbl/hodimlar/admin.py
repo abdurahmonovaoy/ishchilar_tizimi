@@ -24,19 +24,19 @@ class WorkLogAdmin(admin.ModelAdmin):
     list_display = ("hodim", "check_in", "check_out", "hours_worked_display", "late_check_in_display", "early_leave_display", "overtime_display")
 
     def hours_worked_display(self, obj):
-        return f"{obj.hours_worked()} soat"
+        return f"{obj.hours_worked} soat"
     hours_worked_display.short_description = "Ishlangan soat"
 
-    def late_check_in_display(self, obj):  # To‘g‘ri metod nomi ishlatilmoqda
-        return f"{obj.late_check_in_hours()} soat"
+    def late_check_in_display(self, obj):
+        return f"{obj.late_check_in_hours} soat"
     late_check_in_display.short_description = "Kechikish (soat)"
 
     def early_leave_display(self, obj):
-        return f"{obj.early_leave_hours()} soat"
+        return f"{obj.early_leave_hours} soat"
     early_leave_display.short_description = "Oldin ketgan soat"
 
     def overtime_display(self, obj):
-        return f"{obj.overtime_hours()} soat"
+        return f"{obj.overtime_hours} soat"
     overtime_display.short_description = "Ortiqcha ish (soat)"
 
 admin.site.register(WorkLog, WorkLogAdmin)

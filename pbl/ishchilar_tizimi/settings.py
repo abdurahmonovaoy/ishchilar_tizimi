@@ -12,21 +12,25 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / '.env')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-wg0w(ds=v%o3%rh^uqmjm1_l2^8a%-#-l5+)yu*gwggk)y=zu('
+# SECURITY: Secret key from environment variable
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-fallback-key-change-me')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# SECURITY: Debug mode from environment (default False for production)
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = []
+# Allowed hosts from environment variable
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '127.0.0.1,localhost,192.168.0.6,61.251.5.204').split(',')
 
 
 # Application definition
@@ -51,7 +55,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8000', 'http://localhost']
+CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8000', 'http://localhost', 'http://192.168.0.6:8000', 'http://61.251.5.204:8000']
 
 
 ROOT_URLCONF = 'ishchilar_tizimi.urls'
@@ -127,10 +131,81 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
-STATICFILES_DIRS = [BASE_DIR / "static"]  # Agar statik fayllar bo‘lsa
-STATIC_ROOT = BASE_DIR / "staticfiles"  # Static fayllarni yig‘ish joyi
+STATIC_ROOT = BASE_DIR / "staticfiles"  # Static fayllarni yig'ish joyi
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# ============================================
+# SECURITY SETTINGS
+# ============================================
+
+# Session settings
+SESSION_COOKIE_AGE = 3600  # 1 hour session timeout
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_SAVE_EVERY_REQUEST = True  # Reset session timeout on each request
+
+# Security headers (basic, no SSL required)
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+# ============================================
+# LOGGING CONFIGURATION (Audit Logging)
+# ============================================
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'audit': {
+            'format': '[AUDIT] {asctime} - {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'django.log',
+            'formatter': 'verbose',
+        },
+        'audit_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'audit.log',
+            'formatter': 'audit',
+        },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'audit': {
+            'handlers': ['audit_file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+# ============================================
+# AUTHENTICATION SETTINGS
+# ============================================
+LOGIN_URL = '/admin_login/'
+LOGIN_REDIRECT_URL = '/admin_dashboard/'
+LOGOUT_REDIRECT_URL = '/admin_login/'

@@ -17,7 +17,7 @@
                             <input type="text" name="first_name" id="first_name"
                                    class="form-control form-control-lg rounded-3 shadow-sm"
                                    placeholder="Masalan: Barno"
-                                   value="{{ form.first_name.value }}">
+                                   value="{% firstof form.first_name.value hodim.first_name %}">
                         </div>
 
                         <!-- Familiyasi -->
@@ -26,7 +26,7 @@
                             <input type="text" name="last_name" id="last_name"
                                    class="form-control form-control-lg rounded-3 shadow-sm"
                                    placeholder="Masalan: Qochqorova"
-                                   value="{{ form.last_name.value }}">
+                                   value="{% firstof form.last_name.value hodim.last_name %}">
                         </div>
                     </div>
 
@@ -53,12 +53,63 @@
                     </div>
 
                     <div class="row g-3 mt-2">
-                        <!-- Tug‘ilgan sana -->
+                        <!-- Bo'lim -->
                         <div class="col-md-6">
-                            <label for="birth_date" class="form-label fw-bold">Tug‘ilgan sana</label>
+                            <label for="bolim" class="form-label fw-bold">Bo'lim</label>
+                            <input type="text" name="bolim" class="form-control"
+                                    value="{% firstof form.bolim.value hodim.bolim '' %}"
+                                    placeholder="Bo'lim nomi">
+                        </div>
+
+                        <!-- Oylik -->
+                        <div class="col-md-6">
+                            <label for="oylik" class="form-label fw-bold">Oylik maosh (so'm)</label>
+                            <input type="number" name="oylik" class="form-control"
+                                    value="{% firstof form.oylik.value hodim.oylik '0' %}"
+                                    placeholder="Oylik maosh" min="0">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <!-- Tug'ilgan sana -->
+                        <div class="col-md-6">
+                            <label for="birth_date" class="form-label fw-bold">Tug'ilgan sana</label>
                             <input type="date" name="birth_date" class="form-control"
                                     value="{{ form.birth_date.value|default:hodim.birth_date|date:'Y-m-d' }}">
+                        </div>
 
+                        <!-- RFID Karta UID -->
+                        <div class="col-md-6">
+                            <label for="card_uid" class="form-label fw-bold">RFID Karta UID</label>
+                            <div class="input-group">
+                                <input type="text" id="card_uid_input" name="card_uid" class="form-control"
+                                        placeholder="Kartani skanerlang..."
+                                        value="{{ form.card_uid.value|default:hodim.card_uid }}">
+                                <button type="button" id="scan_rfid_btn" class="btn btn-outline-primary">
+                                    <i class="bi bi-credit-card-2-front"></i> Skanerlash
+                                </button>
+                            </div>
+                            <small class="form-text text-muted">
+                                "Skanerlash" tugmasini bosing va RFID kartani skanerga yaqinlashtiring
+                            </small>
+                            
+                            <!-- Recent scans dropdown -->
+                            <div id="recent_scans_container" class="mt-2" style="display: none;">
+                                <small class="text-muted">Oxirgi skanerlanganlar:</small>
+                                <div id="recent_scans_list" class="mt-1">
+                                    <!-- Will be populated by JavaScript -->
+                                </div>
+                            </div>
+                            
+                            <!-- Scanning status -->
+                            <div id="scan_status" class="mt-2" style="display: none;">
+                                <div class="alert alert-info py-2">
+                                    <i class="bi bi-search"></i> <span id="scan_status_text">Skanerni kutmoqda...</span>
+                                    <button type="button" id="stop_scan_btn" class="btn btn-sm btn-outline-secondary ms-2">
+                                        Bekor qilish
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -78,5 +129,205 @@
         </div>
     </div>
 </div>
+
+<script>
+// RFID Scanning JavaScript for Edit Form
+class RFIDScanner {
+    constructor() {
+        this.scanning = false;
+        this.scanInterval = null;
+        this.lastScanTime = null;
+        
+        this.initElements();
+        this.bindEvents();
+        this.loadRecentScans();
+    }
+    
+    initElements() {
+        this.scanBtn = document.getElementById('scan_rfid_btn');
+        this.stopBtn = document.getElementById('stop_scan_btn');
+        this.cardInput = document.getElementById('card_uid_input');
+        this.scanStatus = document.getElementById('scan_status');
+        this.scanStatusText = document.getElementById('scan_status_text');
+        this.recentScansContainer = document.getElementById('recent_scans_container');
+        this.recentScansList = document.getElementById('recent_scans_list');
+    }
+    
+    bindEvents() {
+        this.scanBtn.addEventListener('click', () => this.startScanning());
+        this.stopBtn.addEventListener('click', () => this.stopScanning());
+    }
+    
+    async startScanning() {
+        if (this.scanning) return;
+        
+        this.scanning = true;
+        this.scanBtn.disabled = true;
+        this.scanStatus.style.display = 'block';
+        this.scanStatusText.textContent = 'RFID kartani skanerga yaqinlashtiring...';
+        
+        this.scanInterval = setInterval(() => this.checkForNewScans(), 2000);
+        
+        setTimeout(() => {
+            if (this.scanning) {
+                this.stopScanning();
+                this.showMessage('Skanerlash vaqti tugadi. Qaytadan urinib ko\'ring.', 'warning');
+            }
+        }, 30000);
+    }
+    
+    stopScanning() {
+        this.scanning = false;
+        this.scanBtn.disabled = false;
+        this.scanStatus.style.display = 'none';
+        
+        if (this.scanInterval) {
+            clearInterval(this.scanInterval);
+            this.scanInterval = null;
+        }
+    }
+    
+    async checkForNewScans() {
+        try {
+            const response = await fetch('/api/rfid/recent/');
+            const data = await response.json();
+            
+            if (data.status === 'success' && data.recent_scans.length > 0) {
+                const latestScan = data.recent_scans[0];
+                const scanTime = new Date(latestScan.timestamp);
+                
+                if (!this.lastScanTime || (scanTime - this.lastScanTime) > 1000) {
+                    this.lastScanTime = scanTime;
+                    const now = new Date();
+                    
+                    if ((now - scanTime) < 5000) {
+                        this.selectScan(latestScan);
+                        this.stopScanning();
+                        this.showMessage('RFID karta muvaffaqiyatli skanerlandi!', 'success');
+                    }
+                }
+                
+                this.displayRecentScans(data.recent_scans);
+            }
+        } catch (error) {
+            console.error('Error checking for scans:', error);
+        }
+    }
+    
+    async loadRecentScans() {
+        try {
+            const response = await fetch('/api/rfid/recent/');
+            const data = await response.json();
+            
+            if (data.status === 'success' && data.recent_scans.length > 0) {
+                this.displayRecentScans(data.recent_scans);
+            }
+        } catch (error) {
+            console.error('Error loading recent scans:', error);
+        }
+    }
+    
+    displayRecentScans(scans) {
+        if (scans.length === 0) {
+            this.recentScansContainer.style.display = 'none';
+            return;
+        }
+        
+        this.recentScansContainer.style.display = 'block';
+        this.recentScansList.innerHTML = '';
+        
+        scans.slice(0, 5).forEach((scan, index) => {
+            const scanTime = new Date(scan.timestamp);
+            const timeAgo = this.getTimeAgo(scanTime);
+            
+            const scanItem = document.createElement('div');
+            scanItem.className = 'card mb-2 scan-item';
+            scanItem.innerHTML = `
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong class="text-primary">${scan.card_uid}</strong>
+                            <small class="text-muted ms-2">${timeAgo} | ${scan.gate}</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-success select-scan-btn" 
+                                data-card-uid="${scan.card_uid}">
+                            Tanlash
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            scanItem.querySelector('.select-scan-btn').addEventListener('click', () => {
+                this.selectScan(scan);
+                this.showMessage('RFID karta tanlandi!', 'success');
+            });
+            
+            this.recentScansList.appendChild(scanItem);
+        });
+    }
+    
+    selectScan(scan) {
+        this.cardInput.value = scan.card_uid;
+        this.cardInput.focus();
+        
+        this.cardInput.style.backgroundColor = '#d4edda';
+        setTimeout(() => {
+            this.cardInput.style.backgroundColor = '';
+        }, 1000);
+    }
+    
+    getTimeAgo(date) {
+        const seconds = Math.floor((new Date() - date) / 1000);
+        
+        if (seconds < 60) return `${seconds} soniya oldin`;
+        
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes} daqiqa oldin`;
+        
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours} soat oldin`;
+        
+        return `${Math.floor(hours / 24)} kun oldin`;
+    }
+    
+    showMessage(text, type = 'info') {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        messageDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 300px;';
+        messageDiv.innerHTML = `
+            ${text}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(messageDiv);
+        
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.remove();
+            }
+        }, 3000);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    window.rfidScanner = new RFIDScanner();
+});
+</script>
+
+<style>
+.scan-item {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.scan-item:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+#scan_status .alert {
+    margin-bottom: 0;
+}
+</style>
 
 {% endblock %}

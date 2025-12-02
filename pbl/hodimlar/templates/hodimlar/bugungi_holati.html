@@ -4,49 +4,99 @@
     <h2 class="text-center mb-4">Bugungi Hodimlar Holati</h2>
 
     <div class="row">
-        <!-- Ishga kelganlar -->
-        <div class="col-md-6">
-            <div class="card shadow border-success">
-                <div class="card-header bg-success text-white">
-                    <h4 class="mb-0"> Ishga Kelganlar</h4>
+        <!-- Jami Hodimlar -->
+        <div class="col-md-4">
+            <div class="card bg-primary text-white mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Jami Hodimlar</h5>
+                    <p class="card-text display-4">{{ total_employees }}</p>
                 </div>
-                <div class="card-body">
-                    {% if ishga_kelganlar %}
-                        <ul class="list-group">
-                            {% for hodim in ishga_kelganlar %}
-                                <li class="list-group-item">
-                                    <i class="bi bi-person-circle"></i> {{ hodim.first_name }} {{ hodim.last_name }}
+            </div>
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0"><i class="bi bi-people"></i> Barcha Hodimlar</h6>
+                </div>
+                <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                    {% if barcha_hodimlar %}
+                        <ul class="list-group list-group-flush">
+                            {% for hodim in barcha_hodimlar %}
+                                <li class="list-group-item d-flex align-items-center">
+                                    <i class="bi bi-person text-primary me-2"></i>
+                                    {{ hodim.first_name }} {{ hodim.last_name }}
                                 </li>
                             {% endfor %}
                         </ul>
                     {% else %}
-                        <p class="text-muted">Bugun hech kim ishga kelmadi.</p>
+                        <p class="text-muted text-center py-3">Hodimlar topilmadi.</p>
                     {% endif %}
                 </div>
             </div>
         </div>
 
-        <!-- Ishga kelmaganlar -->
-        <div class="col-md-6">
-            <div class="card shadow border-danger">
-                <div class="card-header bg-danger text-white">
-                    <h4 class="mb-0"> Kelmaganlar</h4>
+        <!-- Bugun Ishga Kelganlar -->
+        <div class="col-md-4">
+            <div class="card bg-success text-white mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Bugun Ishga Kelganlar</h5>
+                    <p class="card-text display-4">{{ present_today }}</p>
                 </div>
-                <div class="card-body">
-                    {% if kelmaganlar %}
-                        <ul class="list-group">
-                            {% for hodim in kelmaganlar %}
-                                <li class="list-group-item">
-                                    <i class="bi bi-person-x"></i> {{ hodim.first_name }} {{ hodim.last_name }}
+            </div>
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="bi bi-person-check"></i> Ishga Kelganlar Ro'yxati</h6>
+                </div>
+                <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                    {% if ishga_kelganlar %}
+                        <ul class="list-group list-group-flush">
+                            {% for hodim in ishga_kelganlar %}
+                                <li class="list-group-item d-flex align-items-center">
+                                    <i class="bi bi-person-circle text-success me-2"></i>
+                                    {{ hodim.first_name }} {{ hodim.last_name }}
                                 </li>
                             {% endfor %}
                         </ul>
                     {% else %}
-                        <p class="text-muted">Barcha hodimlar ishga kelgan.</p>
+                        <p class="text-muted text-center py-3">Bugun hech kim ishga kelmadi.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Bugun Ishga Kelmadi -->
+        <div class="col-md-4">
+            <div class="card bg-danger text-white mb-3">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Bugun Ishga Kelmadi</h5>
+                    <p class="card-text display-4">{{ absent_today }}</p>
+                </div>
+            </div>
+            <div class="card shadow">
+                <div class="card-header bg-danger text-white">
+                    <h6 class="mb-0"><i class="bi bi-person-x"></i> Kelmaganlar Ro'yxati</h6>
+                </div>
+                <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                    {% if kelmaganlar %}
+                        <ul class="list-group list-group-flush">
+                            {% for hodim in kelmaganlar %}
+                                <li class="list-group-item d-flex align-items-center">
+                                    <i class="bi bi-person-x text-danger me-2"></i>
+                                    {{ hodim.first_name }} {{ hodim.last_name }}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted text-center py-3">Barcha hodimlar ishga kelgan.</p>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    .display-4 {
+        font-size: 3rem;
+        font-weight: 700;
+    }
+</style>
 {% endblock %}

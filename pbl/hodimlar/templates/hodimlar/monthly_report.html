@@ -7,7 +7,7 @@
         <div class="col-md-12 mb-4">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title text-center mb-4">📊 {{ month }} – Hodimlarning Davomat Statistikasi</h5>
+                    <h5 class="card-title text-center mb-4">{{ month }} – Hodimlarning Davomat Statistikasi</h5>
                     <canvas id="attendanceStatsChart" style="max-height: 450px;"></canvas>
                 </div>
             </div>
@@ -17,7 +17,7 @@
         <div class="col-md-12 mb-4">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title text-center mb-4">📈 Foyda (%) Statistikasi</h5>
+                    <h5 class="card-title text-center mb-4">Foyda (%) Statistikasi</h5>
                     <canvas id="benefitStatsChart" style="max-height: 450px;"></canvas>
                 </div>
             </div>
@@ -105,17 +105,17 @@
         datasets: [
             
             {
-                label: "🟡 Kech Kelgan Kunlar",
+                label: "Kech Kelgan Kunlar",
                 data: lateDays,
                 backgroundColor: "rgba(255, 193, 7, 0.7)"
             },
             {
-                label: "❌ Kelmagan Kunlar",
+                label: "Kelmagan Kunlar",
                 data: absentDays,
                 backgroundColor: "rgba(244, 67, 54, 0.7)"
             },
             {
-                label: "🔵 Vaqtida Kelgan Kunlar",
+                label: "Vaqtida Kelgan Kunlar",
                 data: onTimeDays,
                 backgroundColor: "rgba(33, 150, 243, 0.7)"
             }
@@ -156,7 +156,7 @@
                 labels: employeeNames,
                 datasets: [
                     {
-                        label: "📈 Foyda (%)",
+                        label: "Foyda (%)",
                         data: benefits,
                         borderColor: "rgba(156, 39, 176, 1)",
                         backgroundColor: "rgba(156, 39, 176, 0.2)",
